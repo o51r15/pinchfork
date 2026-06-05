@@ -1,0 +1,64 @@
+# docker-compose for Pinchfork (Pinchflat fork with Postgres backend).
+#
+# BEFORE DEPLOYING:
+#   1. Clone your fork on the Optiplex:
+#        git clone https://github.com/o51r15/pinchflat.git /home/o51r15/pinchfork-src
+#   2. Copy all modified files from this pinchfork config dir into the cloned repo
+#      at their correct paths (e.g. config/runtime.exs, lib/pinchflat/repo.ex, etc.)
+#   3. Run:
+#        docker compose -f /home/o51r15/docker/pinchfork/docker-compose.selfhosted.yml up -d --build
+#
+# Port 8946 is used on the host — 8945 is already taken by the existing pinchflat.
+# Downloads go to the Pinchfork subfolder under Server Media to keep them separate.
+
+services:
+  pinchfork-db:
+    container_name: pinchfork-db
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pinchflat
+      POSTGRES_PASSWORD: changeme          # <-- change this (must match DATABASE_URL below)
+      POSTGRES_DB: pinchflat
+    volumes:
+      - pinchfork_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinchflat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pinchfork:
+    container_name: pinchfork
+    build:
+      context: /home/o51r15/pinchfork-src
+      dockerfile: docker/selfhosted.Dockerfile
+    restart: unless-stopped
+    depends_on:
+      pinchfork-db:
+        condition: service_healthy
+    environment:
+      - TZ=America/New_York
+      - PUID=1000
+      - PGID=1000
+      - DATABASE_URL=ecto://pinchflat:changeme@pinchfork-db/pinchflat
+      - POOL_SIZE=10
+      # - YT_DLP_WORKER_CONCURRENCY=2
+      # - BASIC_AUTH_USERNAME=admin
+      # - BASIC_AUTH_PASSWORD=secret
+    ports:
+      - "8946:8945"
+    volumes:
+      - /home/o51r15/docker/pinchfork:/config
+      - "/mnt/otherpool/Shares/Server Media/Pinchfork:/downloads"
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2048M
+        reservations:
+          cpus: '0.75'
+          memory: 512M
+
+volumes:
+  pinchfork_pgdata:
