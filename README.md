@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/github/license/kieraneglin/pinchflat?style=for-the-badge&color=ee512b)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/kieraneglin/pinchflat?style=for-the-badge&color=purple)](https://github.com/kieraneglin/pinchflat/releases)
 
-# Pinchflat (o51r15 fork)
+# Pinchflat (o51r15 fork) Currently a broken work in progress
 
 *logo by [@hernandito](https://github.com/hernandito)*
 
