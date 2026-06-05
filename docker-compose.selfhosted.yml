@@ -1,15 +1,4 @@
 # docker-compose for Pinchfork (Pinchflat fork with Postgres backend).
-#
-# BEFORE DEPLOYING:
-#   1. Clone your fork on the Optiplex:
-#        git clone https://github.com/o51r15/pinchflat.git /home/o51r15/pinchfork-src
-#   2. Copy all modified files from this pinchfork config dir into the cloned repo
-#      at their correct paths (e.g. config/runtime.exs, lib/pinchflat/repo.ex, etc.)
-#   3. Run:
-#        docker compose -f /home/o51r15/docker/pinchfork/docker-compose.selfhosted.yml up -d --build
-#
-# Port 8946 is used on the host — 8945 is already taken by the existing pinchflat.
-# Downloads go to the Pinchfork subfolder under Server Media to keep them separate.
 
 services:
   pinchfork-db:
