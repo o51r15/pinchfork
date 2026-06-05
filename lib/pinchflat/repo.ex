@@ -1,7 +1,7 @@
 defmodule Pinchflat.Repo do
   use Ecto.Repo,
     otp_app: :pinchflat,
-    adapter: Ecto.Adapters.SQLite3
+    adapter: Ecto.Adapters.Postgres
 
   import Ecto.Query, warn: false
 

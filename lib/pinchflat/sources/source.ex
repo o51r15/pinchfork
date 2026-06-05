@@ -164,7 +164,7 @@ defmodule Pinchflat.Sources.Source do
   end
 
   defp validate_title_regex(%{changes: %{title_filter_regex: regex}} = changeset) when is_binary(regex) do
-    case Ecto.Adapters.SQL.query(Repo, "SELECT regexp_like('', ?)", [regex]) do
+    case Ecto.Adapters.SQL.query(Repo, "SELECT '' ~ $1", [regex]) do
       {:ok, _} -> changeset
       _ -> add_error(changeset, :title_filter_regex, "is invalid")
     end

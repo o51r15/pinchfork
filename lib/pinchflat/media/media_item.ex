@@ -15,7 +15,6 @@ defmodule Pinchflat.Media.MediaItem do
   alias Pinchflat.Tasks.Task
   alias Pinchflat.Sources.Source
   alias Pinchflat.Metadata.MediaMetadata
-  alias Pinchflat.Media.MediaItemsSearchIndex
 
   @allowed_fields [
     # these fields are only captured on index
@@ -99,7 +98,6 @@ defmodule Pinchflat.Media.MediaItem do
     belongs_to :source, Source
 
     has_one :metadata, MediaMetadata, on_replace: :update
-    has_one :media_items_search_index, MediaItemsSearchIndex, foreign_key: :id
 
     has_many :tasks, Task
 
@@ -137,7 +135,7 @@ defmodule Pinchflat.Media.MediaItem do
 
   @doc false
   def json_exluded_fields do
-    ~w(__meta__ __struct__ metadata tasks media_items_search_index)a
+    ~w(__meta__ __struct__ metadata tasks)a
   end
 
   # Run it on new records no matter what. The method we delegate to

@@ -34,13 +34,13 @@ defmodule Pinchflat.Media.MediaQuery do
   def download_prevented, do: dynamic([mi], mi.prevent_download == true)
   def culling_prevented, do: dynamic([mi], mi.prevent_culling == true)
   def redownloaded, do: dynamic([mi], not is_nil(mi.media_redownloaded_at))
-  def upload_date_matches(other_date), do: dynamic([mi], fragment("date(?) = date(?)", mi.uploaded_at, ^other_date))
+  def upload_date_matches(other_date), do: dynamic([mi], fragment("?::date = ?::date", mi.uploaded_at, ^other_date))
 
   def upload_date_after_source_cutoff do
     dynamic(
       [mi, source],
       is_nil(source.download_cutoff_date) or
-        fragment("date(?) >= ?", mi.uploaded_at, source.download_cutoff_date)
+        fragment("?::date >= ?", mi.uploaded_at, source.download_cutoff_date)
     )
   end
 
@@ -71,7 +71,7 @@ defmodule Pinchflat.Media.MediaQuery do
   def matches_source_title_regex do
     dynamic(
       [mi, source],
-      is_nil(source.title_filter_regex) or fragment("regexp_like(?, ?)", mi.title, source.title_filter_regex)
+      is_nil(source.title_filter_regex) or fragment("? ~ ?", mi.title, source.title_filter_regex)
     )
   end
 
@@ -87,8 +87,8 @@ defmodule Pinchflat.Media.MediaQuery do
     dynamic(
       [mi, source],
       fragment("""
-        IFNULL(retention_period_days, 0) > 0 AND
-        DATETIME(media_downloaded_at, '+' || retention_period_days || ' day') < DATETIME('now')
+        COALESCE(retention_period_days, 0) > 0 AND
+        media_downloaded_at + (retention_period_days * INTERVAL '1 day') < NOW()
       """)
     )
   end
@@ -99,9 +99,9 @@ defmodule Pinchflat.Media.MediaQuery do
       # Returns media items where the uploaded_at is at least redownload_delay_days ago AND
       # downloaded_at minus the redownload_delay_days is before the upload date
       fragment("""
-        IFNULL(redownload_delay_days, 0) > 0 AND
-        DATE('now', '-' || redownload_delay_days || ' day') > DATE(uploaded_at) AND
-        DATE(media_downloaded_at, '-' || redownload_delay_days || ' day') < DATE(uploaded_at)
+        COALESCE(redownload_delay_days, 0) > 0 AND
+        (NOW() - (redownload_delay_days * INTERVAL '1 day'))::date > uploaded_at::date AND
+        (media_downloaded_at - (redownload_delay_days * INTERVAL '1 day'))::date < uploaded_at::date
       """)
     )
   end
@@ -146,15 +146,18 @@ defmodule Pinchflat.Media.MediaQuery do
     )
   end
 
+  # Dynamic filter: returns a boolean expression usable inside a where clause.
+  # Used when search is one of several filters being composed together.
   def matches_search_term(nil), do: dynamic([mi], true)
 
   def matches_search_term(term) do
-    escaped_term = clean_search_term(term)
-
-    # Matching on `term` instead of `escaped_term` because the latter can mangle empty strings
     case String.trim(term) do
-      "" -> dynamic([mi], true)
-      _ -> dynamic([mi], fragment("media_items_search_index MATCH ?", ^escaped_term))
+      "" ->
+        dynamic([mi], true)
+
+      trimmed ->
+        tsquery = build_tsquery(trimmed)
+        dynamic([mi], fragment("search_vector @@ to_tsquery('english', ?)", ^tsquery))
     end
   end
 
@@ -164,10 +167,6 @@ defmodule Pinchflat.Media.MediaQuery do
     else
       do_require_assoc(query, identifier)
     end
-  end
-
-  defp do_require_assoc(query, :media_items_search_index) do
-    from(mi in query, join: s in assoc(mi, :media_items_search_index), as: :media_items_search_index)
   end
 
   defp do_require_assoc(query, :source) do
@@ -180,47 +179,48 @@ defmodule Pinchflat.Media.MediaQuery do
     |> join(:inner, [mi, source], mp in assoc(source, :media_profile), as: :media_profile)
   end
 
-  # This needs to be a non-dynamic query because it alone should control things like
-  # ordering and `snippets` for full-text search
+  # Non-dynamic query: controls ordering and produces highlighted snippets.
+  # Uses ts_headline for snippet generation and ts_rank for relevance ordering.
   def matching_search_term(query, nil), do: query
 
   def matching_search_term(query, term) do
-    escaped_term = clean_search_term(term)
+    case String.trim(term) do
+      "" ->
+        query
 
-    from(mi in query,
-      join: mi_search_index in assoc(mi, :media_items_search_index),
-      where: fragment("media_items_search_index MATCH ?", ^escaped_term),
-      select_merge: %{
-        matching_search_term:
-          fragment("""
-            coalesce(snippet(media_items_search_index, 0, '[PF_HIGHLIGHT]', '[/PF_HIGHLIGHT]', '...', 20), '') ||
-            ' ' ||
-            coalesce(snippet(media_items_search_index, 1, '[PF_HIGHLIGHT]', '[/PF_HIGHLIGHT]', '...', 20), '')
-          """)
-      },
-      order_by: [desc: fragment("rank")]
-    )
+      trimmed ->
+        tsquery = build_tsquery(trimmed)
+
+        from(mi in query,
+          where: fragment("search_vector @@ to_tsquery('english', ?)", ^tsquery),
+          select_merge: %{
+            matching_search_term:
+              fragment("""
+                coalesce(ts_headline('english', ?, to_tsquery('english', ?),
+                  'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5, ShortWord=3'), '')
+                || ' ' ||
+                coalesce(ts_headline('english', ?, to_tsquery('english', ?),
+                  'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5'), '')
+              """, mi.title, ^tsquery, mi.description, ^tsquery)
+          },
+          order_by: [desc: fragment("ts_rank(search_vector, to_tsquery('english', ?))", ^tsquery)]
+        )
+    end
   end
 
-  # SQLite's FTS5 is very picky about what it will accept as a search term.
-  # To that end, we need to clean up the search term before passing it to the
-  # MATCH clause.
-  # This method:
-  #   - Trims leading and trailing whitespace
-  #   - Collapses multiple spaces into a single space
-  #   - Removes quote characters
-  #   - Wraps any word in quotes (must happen after the double quote replacement)
-  #
-  # This allows for works with apostrophes and quotes to be searched for correctly
-  defp clean_search_term(nil), do: ""
-  defp clean_search_term(""), do: ""
-
-  defp clean_search_term(term) do
+  # Converts a plain search term into a Postgres tsquery string.
+  # Each whitespace-separated word becomes a prefix-match term joined with &.
+  # Example: "hello world" -> "hello:* & world:*"
+  # This gives similar behaviour to the old SQLite FTS5 trigram tokenizer:
+  # partial word matches are supported and multiple words must all be present.
+  defp build_tsquery(term) do
     term
     |> String.trim()
     |> String.replace(~r/\s+/, " ")
-    |> String.split(~r/\s+/)
-    |> Enum.map(fn str -> String.replace(str, ~s("), "") end)
-    |> Enum.map_join(" ", fn str -> ~s("#{str}") end)
+    |> String.split(" ")
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map(fn word -> Regex.replace(~r/[^a-zA-Z0-9\-]/, word, "") end)
+    |> Enum.reject(&(&1 == ""))
+    |> Enum.map_join(" & ", fn word -> "#{word}:*" end)
   end
 end

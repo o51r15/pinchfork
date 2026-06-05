@@ -8,9 +8,12 @@ config :pinchflat,
 
 # Configure your database
 config :pinchflat, Pinchflat.Repo,
-  database: Path.expand("../priv/repo/pinchflat_dev.db", Path.dirname(__ENV__.file)),
+  username: "postgres",
+  password: "postgres",
+  hostname: "localhost",
+  database: "pinchflat_dev",
   show_sensitive_data_on_connection_error: true,
-  pool_size: 5
+  pool_size: 10
 
 # For development, we disable any cache and enable
 # debugging and code reloading.

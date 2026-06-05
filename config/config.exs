@@ -31,8 +31,7 @@ config :pinchflat,
   base_route_path: "/"
 
 config :pinchflat, Pinchflat.Repo,
-  journal_mode: :wal,
-  pool_size: 5
+  pool_size: 10
 
 # Configures the endpoint
 config :pinchflat, PinchflatWeb.Endpoint,
@@ -49,7 +48,7 @@ config :pinchflat, PinchflatWeb.Endpoint,
   live_view: [signing_salt: "/t5878kO"]
 
 config :pinchflat, Oban,
-  engine: Oban.Engines.Lite,
+  engine: Oban.Engines.Basic,
   repo: Pinchflat.Repo
 
 # Configures the mailer

@@ -3,19 +3,11 @@ defmodule Pinchflat.Repo.Migrations.RenameUploadDateToUploadedAt do
 
   def up do
     rename table(:media_items), :upload_date, to: :uploaded_at
-
-    execute """
-      UPDATE media_items
-      SET uploaded_at = uploaded_at || 'T00:00:00'
-    """
+    # Data migration removed: original converted SQLite date strings to datetime
+    # strings, not needed on a fresh Postgres install with no existing data
   end
 
   def down do
     rename table(:media_items), :uploaded_at, to: :upload_date
-
-    execute """
-      UPDATE media_items
-      SET upload_date = DATE(upload_date)
-    """
   end
 end

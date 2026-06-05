@@ -1,60 +1,19 @@
 defmodule Pinchflat.Repo.Migrations.ChangeMediaItemsSearchIndexTokenizer do
   use Ecto.Migration
 
+  # In SQLite this rebuilt the FTS5 index with a trigram tokenizer.
+  # In Postgres, the tsvector trigger already handles this correctly,
+  # and pg_trgm is available for trigram-style search if needed.
+  # This migration backfills existing rows that were inserted before the trigger existed.
   def up do
-    # These all need to run as part of separate `execute` blocks. Do NOT ask me why.
-    execute "DROP TRIGGER IF EXISTS media_items_search_index_insert;"
-    execute "DROP TRIGGER IF EXISTS media_items_search_index_update;"
-    execute "DROP TRIGGER IF EXISTS media_items_search_index_delete;"
-    execute "DROP TABLE IF EXISTS media_items_search_index;"
-
     execute """
-      CREATE VIRTUAL TABLE media_items_search_index USING fts5(
-        title,
-        description,
-        tokenize=trigram
-      );
-    """
-
-    execute """
-      CREATE TRIGGER media_items_search_index_insert AFTER INSERT ON media_items BEGIN
-        INSERT INTO media_items_search_index(
-          rowid,
-          title,
-          description
-        )
-        VALUES(
-          new.id,
-          new.title,
-          new.description
-        );
-      END;
-    """
-
-    execute """
-      CREATE TRIGGER media_items_search_index_update AFTER UPDATE ON media_items BEGIN
-        UPDATE media_items_search_index SET
-          title = new.title,
-          description = new.description
-        WHERE
-          rowid = old.id;
-      END;
-    """
-
-    execute """
-      CREATE TRIGGER media_items_search_index_delete AFTER DELETE ON media_items BEGIN
-        DELETE FROM media_items_search_index WHERE rowid = old.id;
-      END;
-    """
-
-    # Fully re-index the media_items table
-    execute """
-      INSERT INTO media_items_search_index(rowid, title, description)
-      SELECT id, title, description FROM media_items;
+      UPDATE media_items SET search_vector =
+        setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+        setweight(to_tsvector('english', coalesce(description, '')), 'B');
     """
   end
 
   def down do
-    execute "DROP TABLE media_items_search_index;"
+    execute "UPDATE media_items SET search_vector = NULL;"
   end
 end

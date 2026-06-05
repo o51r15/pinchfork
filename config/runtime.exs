@@ -25,20 +25,7 @@ config :pinchflat,
   basic_auth_username: System.get_env("BASIC_AUTH_USERNAME"),
   basic_auth_password: System.get_env("BASIC_AUTH_PASSWORD")
 
-arch_string = to_string(:erlang.system_info(:system_architecture))
 
-system_arch =
-  cond do
-    String.contains?(arch_string, "arm") -> "arm"
-    String.contains?(arch_string, "aarch") -> "arm"
-    String.contains?(arch_string, "x86") -> "x86"
-    true -> "unknown"
-  end
-
-config :pinchflat, Pinchflat.Repo,
-  load_extensions: [
-    Path.join([:code.priv_dir(:pinchflat), "repo", "extensions", "sqlean-linux-#{system_arch}", "sqlean"])
-  ]
 
 # Some users may want to increase the number of workers that use yt-dlp to improve speeds
 # Others may want to decrease the number of these workers to lessen the chance of an IP ban
@@ -73,7 +60,6 @@ if config_env() == :prod do
   # Various paths. These ones shouldn't be tweaked if running in Docker
   media_path = System.get_env("MEDIA_PATH", "/downloads")
   config_path = System.get_env("CONFIG_PATH", "/config")
-  db_path = System.get_env("DATABASE_PATH", Path.join([config_path, "db", "pinchflat.db"]))
   log_path = System.get_env("LOG_PATH", Path.join([config_path, "logs", "pinchflat.log"]))
   metadata_path = System.get_env("METADATA_PATH", Path.join([config_path, "metadata"]))
   extras_path = System.get_env("EXTRAS_PATH", Path.join([config_path, "extras"]))
@@ -82,12 +68,17 @@ if config_env() == :prod do
   tz_data_path = System.get_env("TZ_DATA_PATH", Path.join([extras_path, "elixir_tz_data"]))
   # For running PF as a podcast host on self-hosted environments
   expose_feed_endpoints = String.length(System.get_env("EXPOSE_FEED_ENDPOINTS", "")) > 0
-  # For testing alternate journal modes (see issue #137)
-  journal_mode = String.to_existing_atom(System.get_env("JOURNAL_MODE", "wal"))
   # For running PF in a subdirectory via a reverse proxy
   base_route_path = System.get_env("BASE_ROUTE_PATH", "/")
   enable_ipv6 = String.length(System.get_env("ENABLE_IPV6", "")) > 0
   enable_prometheus = String.length(System.get_env("ENABLE_PROMETHEUS", "")) > 0
+
+  database_url =
+    System.get_env("DATABASE_URL") ||
+      raise """
+      environment variable DATABASE_URL is missing.
+      For example: ecto://postgres:postgres@localhost/pinchflat
+      """
 
   config :logger, level: String.to_existing_atom(System.get_env("LOG_LEVEL", "debug"))
 
@@ -108,8 +99,9 @@ if config_env() == :prod do
   config :tzdata, :data_dir, tz_data_path
 
   config :pinchflat, Pinchflat.Repo,
-    database: db_path,
-    journal_mode: journal_mode
+    url: database_url,
+    pool_size: String.to_integer(System.get_env("POOL_SIZE", "10")),
+    socket_options: if(enable_ipv6, do: [:inet6], else: [])
 
   config :pinchflat, Pinchflat.PromEx, disabled: !enable_prometheus
 

@@ -1,16 +1,13 @@
 defmodule Pinchflat.Media.MediaItemsSearchIndex do
   @moduledoc """
-  The MediaItem fts5 search index. Not made to be directly interacted with,
-  but I figured it'd be better to have it in-app so it's not a mystery.
+  Represents the tsvector search_vector column on media_items used for
+  Postgres full-text search. Kept as a thin module so the rest of the
+  codebase can reference it by name without knowing the underlying mechanism.
+
+  In the SQLite version this was an FTS5 virtual table. In Postgres it is
+  simply a maintained tsvector column with a GIN index, updated by a trigger.
   """
 
-  use Ecto.Schema
-
-  @primary_key {:id, :id, autogenerate: true, source: :rowid}
-  schema "media_items_search_index" do
-    field :title, :string
-    field :description, :string
-
-    field :rank, :float, virtual: true
-  end
+  # No separate schema needed — search_vector lives on media_items itself.
+  # This module exists only as a named anchor for query helpers.
 end
