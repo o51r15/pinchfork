@@ -24,6 +24,9 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
 
   alias Pinchflat.YtDlp.Media, as: YtDlpMedia
 
+  # Availability values that require membership/authentication
+  @members_availability ~w(subscriber_only premium_only needs_auth)
+
   @doc """
   Kills old indexing tasks and starts a new task to index the media collection.
 
@@ -171,10 +174,50 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
 
     case Media.create_media_item_from_backend_attrs(source, media_attrs) do
       {:ok, %MediaItem{} = media_item} ->
+        media_item = apply_availability_policy(media_item, source)
         DownloadingHelpers.kickoff_download_if_pending(media_item)
 
       {:error, changeset} ->
         changeset
+    end
+  end
+
+  # Checks the media item's availability against the source's download policy
+  # and sets prevent_download accordingly. Runs on every insert/upsert so that
+  # availability changes on rescan are picked up automatically.
+  #
+  # Availability mapping:
+  #   public             -> covered by download_public_videos
+  #   subscriber_only    -> covered by download_members_videos
+  #   premium_only       -> covered by download_members_videos
+  #   needs_auth         -> covered by download_members_videos
+  #   unlisted, private  -> always skipped
+  #   nil                -> treated as public (non-YouTube sources)
+  defp apply_availability_policy(%MediaItem{} = media_item, %Source{} = source) do
+    prevent =
+      case media_item.availability do
+        nil ->
+          # Non-YouTube or unknown — treat as public
+          not source.download_public_videos
+
+        "public" ->
+          not source.download_public_videos
+
+        av when av in @members_availability ->
+          not source.download_members_videos
+
+        _other ->
+          # unlisted, private, or anything else — always skip
+          true
+      end
+
+    if prevent != media_item.prevent_download do
+      case Media.update_media_item(media_item, %{prevent_download: prevent}) do
+        {:ok, updated} -> updated
+        _ -> media_item
+      end
+    else
+      media_item
     end
   end
 

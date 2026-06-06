@@ -97,7 +97,9 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
         {:ok, updated_media_item} =
           Media.update_media_item(downloaded_media_item, %{
             media_size_bytes: compute_media_filesize(downloaded_media_item),
-            media_redownloaded_at: get_redownloaded_at(is_quality_upgrade)
+            media_redownloaded_at: get_redownloaded_at(is_quality_upgrade),
+            error_type: nil,
+            last_error: nil
           })
 
         :ok = FileSyncing.delete_outdated_files(media_item, updated_media_item)
@@ -112,7 +114,7 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
         {:ok, :non_retry}
 
       {:error, _error_atom, message} ->
-        action_on_error(message)
+        action_on_error(media_item, message)
     end
   end
 
@@ -126,22 +128,51 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
   defp get_redownloaded_at(true), do: DateTime.utc_now()
   defp get_redownloaded_at(_), do: nil
 
-  defp action_on_error(message) do
-    # This will attempt re-download at the next indexing, but it won't be retried
-    # immediately as part of job failure logic
-    non_retryable_errors = [
-      "Video unavailable",
-      "Sign in to confirm",
-      "This video is available to this channel's members"
-    ]
+  defp action_on_error(media_item, message) do
+    message_str = to_string(message)
 
-    if String.contains?(to_string(message), non_retryable_errors) do
-      Logger.error("yt-dlp download will not be retried: #{inspect(message)}")
+    if String.contains?(message_str, permanent_failure_strings()) do
+      Logger.error("yt-dlp download permanently failed: #{inspect(message)}")
+
+      Media.update_media_item(media_item, %{
+        prevent_download: true,
+        error_type: "permanent",
+        last_error: message_str
+      })
 
       {:ok, :non_retry}
     else
+      Logger.error("yt-dlp download failed (will retry): #{inspect(message)}")
+
+      Media.update_media_item(media_item, %{
+        error_type: "transient",
+        last_error: message_str
+      })
+
       {:error, :download_failed}
     end
+  end
+
+  defp permanent_failure_strings do
+    [
+      # Deleted or removed
+      "Video unavailable",
+      "This video has been removed",
+      "This video is not available",
+      # Auth / age-gated
+      "Sign in to confirm",
+      "age-restricted",
+      "requires payment",
+      # Members / premium
+      "This video is available to this channel's members",
+      "members-only",
+      "premium",
+      # Geo-blocked
+      "not available in your country",
+      "not available in your region",
+      # Private
+      "Private video"
+    ]
   end
 
   # NOTE: I like this pattern of using the default value so that I don't have to

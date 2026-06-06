@@ -44,7 +44,9 @@ defmodule Pinchflat.Media.MediaItem do
     :prevent_download,
     :prevent_culling,
     :culled_at,
-    :media_redownloaded_at
+    :media_redownloaded_at,
+    :availability,
+    :error_type
   ]
   # Pretty much all the fields captured at index are required.
   @required_fields ~w(
@@ -92,6 +94,8 @@ defmodule Pinchflat.Media.MediaItem do
     field :prevent_download, :boolean, default: false
     field :prevent_culling, :boolean, default: false
     field :culled_at, :utc_datetime
+    field :availability, :string
+    field :error_type, :string
 
     field :matching_search_term, :string, virtual: true
 

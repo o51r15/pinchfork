@@ -51,9 +51,9 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 ## Roadmap
 
 - [x] **v0.1.0** — PostgreSQL backend migration. Replaces SQLite with Postgres, resolves Oban write contention, migrates full-text search to `tsvector`, rewrites all SQLite-specific query syntax.
-- [ ] **Source-level content availability filtering** — Per-source checkboxes to control whether public videos, members-only videos, or both are downloaded. Captures yt-dlp `availability` field at index time and re-evaluates on rescan.
-- [ ] **Error classification system** — `error_type` field on `media_items` to distinguish permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits).
-- [ ] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
+- [x] **Source-level content availability filtering** — Per-source checkboxes to control whether public videos, members-only videos, or both are downloaded. Captures yt-dlp `availability` field at index time and re-evaluates on rescan.
+- [x] **Error classification system** — `error_type` field on `media_items` to distinguish permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits).
+- [x] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
 - [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
 
 ---

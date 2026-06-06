@@ -40,6 +40,8 @@ defmodule Pinchflat.Sources.Source do
     marked_for_deletion_at
     min_duration_seconds
     max_duration_seconds
+    download_public_videos
+    download_members_videos
   )a
 
   # Expensive API calls are made when a source is inserted/updated so
@@ -90,6 +92,9 @@ defmodule Pinchflat.Sources.Source do
 
     field :min_duration_seconds, :integer
     field :max_duration_seconds, :integer
+
+    field :download_public_videos, :boolean, default: true
+    field :download_members_videos, :boolean, default: false
 
     field :series_directory, :string
     field :nfo_filepath, :string
