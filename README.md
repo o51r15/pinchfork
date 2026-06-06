@@ -1,15 +1,16 @@
 > **This is a personal fork of [kieraneglin/pinchflat](https://github.com/kieraneglin/pinchflat).** The upstream project entered a development pause in September 2025. This fork continues active development with a focus on backend stability and operational improvements. See the [Fork Changes](#fork-changes) section for details.
 
-[![License](https://img.shields.io/github/license/kieraneglin/pinchflat?style=for-the-badge&color=ee512b)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
-[![Latest Release](https://img.shields.io/github/v/release/kieraneglin/pinchflat?style=for-the-badge&color=purple)](https://github.com/kieraneglin/pinchflat/releases)
+[![License](https://img.shields.io/github/license/o51r15/pinchflat?style=for-the-badge&color=ee512b)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchflat?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchflat/releases)
 
-# Pinchflat (o51r15 fork) Currently a broken work in progress
+# Pinchflat (o51r15 fork)
 
 *logo by [@hernandito](https://github.com/hernandito)*
 
 ## Table of contents
 
 - [Fork Changes](#fork-changes)
+- [Roadmap](#roadmap)
 - [What it does](#what-it-does)
 - [Features](#features)
 - [Installation](#installation)
@@ -44,6 +45,16 @@ The original Pinchflat uses SQLite as its database. This fork replaces it with P
 **What stays the same:**
 
 All application features, the web UI, yt-dlp integration, media profiles, sources, Jellyfin/Plex/Kodi support, SponsorBlock, RSS feeds, Apprise notifications, and lifecycle scripts are unchanged. This is purely a backend infrastructure change.
+
+---
+
+## Roadmap
+
+- [x] **v0.1.0** — PostgreSQL backend migration. Replaces SQLite with Postgres, resolves Oban write contention, migrates full-text search to `tsvector`, rewrites all SQLite-specific query syntax.
+- [ ] **Source-level content availability filtering** — Per-source checkboxes to control whether public videos, members-only videos, or both are downloaded. Captures yt-dlp `availability` field at index time and re-evaluates on rescan.
+- [ ] **Error classification system** — `error_type` field on `media_items` to distinguish permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits).
+- [ ] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
+- [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
 
 ---
 
