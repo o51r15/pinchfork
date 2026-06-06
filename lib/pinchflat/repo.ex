@@ -15,6 +15,7 @@ defmodule Pinchflat.Repo do
     case Oban.insert(job_struct) do
       {:ok, %Oban.Job{conflict?: false} = job} -> {:ok, job}
       {:ok, %Oban.Job{conflict?: true} = job} -> {:duplicate, job}
+      {:error, :rollback} -> {:duplicate, nil}
       err -> err
     end
   end
