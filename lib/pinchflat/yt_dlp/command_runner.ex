@@ -48,9 +48,6 @@ defmodule Pinchflat.YtDlp.CommandRunner do
       #     2 = Error in user-provided options
       #     1 = Any other error
       {_, status} when status in [0, 101] ->
-        # IDEA: consider deleting the file after reading it. It's in the tmp dir, so it's not
-        # a huge deal, but it's still a good idea to clean up after ourselves.
-        # (even on error? especially on error?)
         File.read(output_filepath)
 
       {output, status} ->
@@ -77,15 +74,22 @@ defmodule Pinchflat.YtDlp.CommandRunner do
   end
 
   @doc """
-  Updates yt-dlp to the latest version
+  Updates yt-dlp to the target version or channel.
+
+  Version target options:
+    - "stable" (default) - updates to latest stable release
+    - "nightly" - updates to latest nightly build
+    - "master" - updates to latest master build
+    - A specific version like "2025.12.08" - pins to that exact version
 
   Returns {:ok, binary()} | {:error, binary()}
   """
   @impl YtDlpCommandRunner
-  def update do
+  def update(version_target \\ "stable") do
     command = backend_executable()
+    args = build_update_args(version_target)
 
-    case CliUtils.wrap_cmd(command, ["--update"]) do
+    case CliUtils.wrap_cmd(command, args) do
       {output, 0} ->
         {:ok, String.trim(output)}
 
@@ -93,6 +97,11 @@ defmodule Pinchflat.YtDlp.CommandRunner do
         {:error, output}
     end
   end
+
+  defp build_update_args("stable"), do: ["--update"]
+  defp build_update_args("nightly"), do: ["--update-to", "nightly"]
+  defp build_update_args("master"), do: ["--update-to", "master"]
+  defp build_update_args(specific_version), do: ["--update-to", "yt-dlp/yt-dlp@#{specific_version}"]
 
   defp generate_output_filepath(addl_opts) do
     case Keyword.get(addl_opts, :output_filepath) do

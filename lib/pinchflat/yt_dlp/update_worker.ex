@@ -1,5 +1,14 @@
 defmodule Pinchflat.YtDlp.UpdateWorker do
-  @moduledoc false
+  @moduledoc """
+  Handles automatic yt-dlp updates based on the YT_DLP_VERSION environment variable.
+
+  Supported values for YT_DLP_VERSION:
+    - "stable" (default) - updates to latest stable release daily
+    - "nightly" - updates to latest nightly build daily
+    - "master" - updates to latest master build daily
+    - "pinned" or "none" - disables automatic updates entirely
+    - A specific version like "2025.12.08" - pins to that exact version
+  """
 
   use Oban.Worker,
     queue: :local_data,
@@ -23,19 +32,34 @@ defmodule Pinchflat.YtDlp.UpdateWorker do
   Updates yt-dlp and saves the version to the settings.
 
   This worker is scheduled to run via the Oban Cron plugin as well as on app boot.
+  The update behavior is controlled by the YT_DLP_VERSION environment variable.
 
   Returns :ok
   """
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
-    Logger.info("Updating yt-dlp")
+    version_channel = get_version_channel()
 
-    yt_dlp_runner().update()
+    case version_channel do
+      setting when setting in ["pinned", "none"] ->
+        Logger.info("yt-dlp auto-update disabled (YT_DLP_VERSION=#{setting})")
+
+      target ->
+        Logger.info("Updating yt-dlp (channel: #{target})")
+        yt_dlp_runner().update(target)
+    end
 
     {:ok, yt_dlp_version} = yt_dlp_runner().version()
     Settings.set(yt_dlp_version: yt_dlp_version)
 
     :ok
+  end
+
+  @doc """
+  Returns the configured yt-dlp version channel from app config.
+  """
+  def get_version_channel do
+    Application.get_env(:pinchflat, :yt_dlp_version_channel, "stable")
   end
 
   defp yt_dlp_runner do

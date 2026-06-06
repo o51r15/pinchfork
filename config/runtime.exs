@@ -25,13 +25,23 @@ config :pinchflat,
   basic_auth_username: System.get_env("BASIC_AUTH_USERNAME"),
   basic_auth_password: System.get_env("BASIC_AUTH_PASSWORD")
 
-
-
 # Some users may want to increase the number of workers that use yt-dlp to improve speeds
 # Others may want to decrease the number of these workers to lessen the chance of an IP ban
 {yt_dlp_worker_count, _} = Integer.parse(System.get_env("YT_DLP_WORKER_CONCURRENCY", "2"))
+
+# Controls yt-dlp update behavior. Supported values:
+#   - "stable" (default) - updates to latest stable release daily
+#   - "nightly" - updates to latest nightly build daily
+#   - "master" - updates to latest master build daily
+#   - "pinned" or "none" - disables automatic updates entirely
+#   - A specific version like "2025.12.08" - pins to that exact version
+yt_dlp_version_channel = System.get_env("YT_DLP_VERSION", "stable")
+
+config :pinchflat,
+  yt_dlp_version_channel: yt_dlp_version_channel
+
 # Used to set the cron for the yt-dlp update worker. The reason for this is
-# to avoid all instances of PF updating yt-dlp at the same time, which 1)
+# to avoid all instances of PF updating yt-dlp at the same time, which 1)\
 # could result in rate limiting and 2) gives me time to react if an update
 # breaks something
 %{hour: current_hour, minute: current_minute} = DateTime.utc_now()
@@ -48,6 +58,8 @@ config :pinchflat, Oban,
   plugins: [
     # Keep old jobs for 30 days for display in the UI
     {Oban.Plugins.Pruner, max_age: 30 * 24 * 60 * 60},
+    # Rescue jobs stuck in "executing" state after a crash or container restart
+    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
      crontab: [
        {"#{current_minute} #{current_hour} * * *", Pinchflat.YtDlp.UpdateWorker},
@@ -105,23 +117,11 @@ if config_env() == :prod do
 
   config :pinchflat, Pinchflat.PromEx, disabled: !enable_prometheus
 
-  # The secret key base is used to sign/encrypt cookies and other secrets.
-  # A default value is used in config/dev.exs and config/test.exs but you
-  # want to use a different value for prod and you most likely don't want
-  # to check this value into version control, so we use an environment
-  # variable instead.
   secret_key_base =
     if System.get_env("SECRET_KEY_BASE") do
       System.get_env("SECRET_KEY_BASE")
     else
       if System.get_env("RUN_CONTEXT") == "selfhosted" do
-        # Using the default SECRET_KEY_BASE in a conventional production environment
-        # is dangerous. Please set the SECRET_KEY_BASE environment variable if you're
-        # deploying this to an internet-facing server. If you're running this in a
-        # private network, it's likely safe to use the default value. If you want
-        # to be extra safe, run `mix phx.gen.secret` and set the SECRET_KEY_BASE
-        # environment variable to the output of that command.
-
         "ZkuQMStdmUzBv+gO3m3XZrtQW76e+AX3QIgTLajw3b/HkTLMEx+DOXr2WZsSS+n8"
       else
         raise """
@@ -133,10 +133,6 @@ if config_env() == :prod do
 
   config :pinchflat, PinchflatWeb.Endpoint,
     http: [
-      # Enable IPv6 and bind on all interfaces.
-      # Set it to  {0, 0, 0, 0, 0, 0, 0, 1} for local network only access.
-      # See the documentation on https://hexdocs.pm/plug_cowboy/Plug.Cowboy.html
-      # for details about using IPv6 vs IPv4 and loopback vs public addresses.
       ip: if(enable_ipv6, do: {0, 0, 0, 0, 0, 0, 0, 0}, else: {0, 0, 0, 0}),
       port: String.to_integer(System.get_env("PORT") || "4000")
     ],

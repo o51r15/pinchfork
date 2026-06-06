@@ -54,7 +54,11 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 - [x] **Source-level content availability filtering** — Per-source checkboxes to control whether public videos, members-only videos, or both are downloaded. Captures yt-dlp `availability` field at index time and re-evaluates on rescan.
 - [x] **Error classification system** — `error_type` field on `media_items` to distinguish permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits).
 - [x] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
+- [x] **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart. Automatically retries them after 30 minutes. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#860](https://github.com/kieraneglin/pinchflat/pull/860))*
+- [x] **yt-dlp version management** — `YT_DLP_VERSION` environment variable to control update behavior: `stable` (default), `nightly`, `master`, `pinned`/`none` to disable, or a specific version string. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#858](https://github.com/kieraneglin/pinchflat/pull/858))*
 - [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
+- [ ] **Queue diagnostics page** — New Config menu item with Oban queue health stats, stuck job detection, and bulk reset/cancel actions. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#859](https://github.com/kieraneglin/pinchflat/pull/859))*
+- [ ] **YouTube API key tester** — One-click API key validation from the Settings page. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#857](https://github.com/kieraneglin/pinchflat/pull/857))*
 
 ---
 
@@ -179,6 +183,12 @@ Pinchflat makes heavy use of websockets for real-time updates. Ensure your rever
 ## Upstream documentation
 
 For documentation on features, media profiles, sources, Jellyfin/Plex setup, cookies, SponsorBlock, and other functionality, refer to the [upstream wiki](https://github.com/kieraneglin/pinchflat/wiki). All feature documentation remains accurate for this fork — only the installation and database backend differ.
+
+---
+
+## Contributors
+
+**[ddacunha](https://github.com/ddacunha)** — Contributed several improvements that were submitted as open PRs to the upstream project but not yet merged. Their work on the Oban Lifeline plugin, yt-dlp version management, queue diagnostics, and YouTube API key testing has been incorporated into this fork with attribution.
 
 ---
 
