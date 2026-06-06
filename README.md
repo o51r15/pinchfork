@@ -60,7 +60,7 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 - [x] **yt-dlp version management** — `YT_DLP_VERSION` environment variable to control update behavior: `stable` (default), `nightly`, `master`, `pinned`/`none` to disable, or a specific version string. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#858](https://github.com/kieraneglin/pinchflat/pull/858))*
 - [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
 - [ ] **Queue diagnostics page** — New Config menu item with Oban queue health stats, stuck job detection, and bulk reset/cancel actions. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#859](https://github.com/kieraneglin/pinchflat/pull/859))*
-- [ ] **YouTube API key tester** — One-click API key validation from the Settings page. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#857](https://github.com/kieraneglin/pinchflat/pull/857))*
+- [x] **YouTube API key tester** — One-click API key validation from the Settings page. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#857](https://github.com/kieraneglin/pinchflat/pull/857))*
 
 ---
 
