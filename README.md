@@ -1,6 +1,6 @@
 > **This is a personal fork of [kieraneglin/pinchflat](https://github.com/kieraneglin/pinchflat).** The upstream project entered a development pause in September 2025. This fork continues active development with a focus on backend stability and operational improvements. See the [Fork Changes](#fork-changes) section for details.
 
-[![License](https://img.shields.io/github/license/o51r15/pinchflat?style=for-the-badge&color=ee512b)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchflat?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchflat/releases)
 
 # Pinchflat (o51r15 fork)
