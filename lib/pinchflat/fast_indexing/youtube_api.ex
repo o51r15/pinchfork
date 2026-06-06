@@ -41,6 +41,41 @@ defmodule Pinchflat.FastIndexing.YoutubeApi do
     end
   end
 
+  @doc """
+  Tests whether a given API key is valid by making a request against a known
+  public playlist. Returns :ok on success or {:error, reason} on failure.
+
+  Returns :ok | {:error, binary()}
+  """
+  @impl YoutubeBehaviour
+  def test_api_key(api_key) when is_binary(api_key) do
+    # Use a well-known public playlist to test if the API key is valid
+    test_playlist_id = "PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf"
+
+    url =
+      "https://youtube.googleapis.com/youtube/v3/playlistItems?part=id&maxResults=1&playlistId=#{test_playlist_id}&key=#{api_key}"
+
+    case http_client().get(url, accept: "application/json") do
+      {:ok, response} ->
+        case Phoenix.json_library().decode(response) do
+          {:ok, %{"error" => %{"message" => message}}} ->
+            {:error, message}
+
+          {:ok, %{"items" => _}} ->
+            :ok
+
+          {:ok, _} ->
+            :ok
+
+          {:error, _} ->
+            {:error, "Invalid JSON response"}
+        end
+
+      {:error, reason} ->
+        {:error, "Request failed: #{inspect(reason)}"}
+    end
+  end
+
   # The UC prefix is for channels which won't work with this API endpoint. Swapping
   # the prefix to UU will get us the playlist that represents the channel's uploads
   defp determine_playlist_id(%{collection_id: c_id}) do
@@ -96,7 +131,6 @@ defmodule Pinchflat.FastIndexing.YoutubeApi do
     end
   end
 
-  # Gets the next API key in round-robin fashion
   defp next_api_key do
     keys = api_keys()
 
