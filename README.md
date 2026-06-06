@@ -18,6 +18,8 @@
   - [Environment Variables](#environment-variables)
   - [Reverse Proxies](#reverse-proxies)
 - [Upstream documentation](#upstream-documentation)
+- [Configuration Differences from Upstream](#configuration-differences-from-upstream)
+- [Contributors](#contributors)
 - [License](#license)
 
 ---
@@ -172,11 +174,57 @@ The first build will take several minutes. Migrations run automatically at start
 | `TZ_DATA_DIR` | No | `/etc/elixir_tzdata_data` | Container path for timezone database |
 | `BASE_ROUTE_PATH` | No | `/` | Base path for reverse proxy subdirectory deployments |
 | `YT_DLP_WORKER_CONCURRENCY` | No | `2` | yt-dlp workers per queue. Set to `1` if getting IP limited |
+| `YT_DLP_VERSION` | No | `stable` | yt-dlp update behavior: `stable`, `nightly`, `master`, `pinned`/`none` to disable, or a specific version like `2025.12.08` |
 | `ENABLE_PROMETHEUS` | No | `false` | Set to any non-blank value to enable |
 
 ### Reverse Proxies
 
 Pinchflat makes heavy use of websockets for real-time updates. Ensure your reverse proxy is configured to support websockets.
+
+---
+
+## Configuration Differences from Upstream
+
+This fork introduces configuration options and behaviors that differ from or extend the upstream Pinchflat documentation. If you're migrating from upstream or referencing the upstream wiki, note the following.
+
+### Environment Variables (additions)
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | — | **Required.** Postgres connection string: `ecto://user:pass@host/db`. Replaces the SQLite `DATABASE_PATH` variable which does not exist in this fork. |
+| `POOL_SIZE` | `10` | Postgres connection pool size. No equivalent in upstream. |
+| `YT_DLP_VERSION` | `stable` | Controls yt-dlp update behavior. `stable`, `nightly`, `master`, `pinned`/`none` to disable, or a specific version like `2025.12.08`. No equivalent in upstream. |
+
+### Environment Variables (removed)
+
+| Variable | Reason |
+| --- | --- |
+| `DATABASE_PATH` | SQLite-only. Not used in this fork. |
+| `JOURNAL_MODE` | SQLite-only workaround for network shares. Not used in this fork. |
+
+### Oban job queue behavior
+
+This fork uses the `Oban.Engines.Basic` engine (Postgres native) instead of `Oban.Engines.Lite` (SQLite-only). This resolves write contention and crash loops that could occur on the upstream under load.
+
+The `Oban.Plugins.Lifeline` plugin is enabled with a 30-minute rescue window. Any job that gets stuck in `executing` state after a crash or container restart will automatically be moved back to `retryable` and re-queued. Upstream does not include this plugin.
+
+### Source configuration (additions)
+
+Each source has two new fields not present in upstream:
+
+- **Download public videos** (default: on) — controls whether videos with `availability: public` are downloaded.
+- **Download members-only videos** (default: off) — controls whether `subscriber_only`, `premium_only`, and `needs_auth` videos are downloaded. Requires cookies to be configured for the source.
+
+Unlisted and private videos are always skipped regardless of these settings.
+
+### Media item error tracking (additions)
+
+Two new fields on media items not present in upstream:
+
+- **`availability`** — captured from yt-dlp at index time. Values: `public`, `unlisted`, `subscriber_only`, `premium_only`, `needs_auth`, `private`.
+- **`error_type`** — set during download failures. Values: `transient` (will retry), `permanent` (sets `prevent_download: true`, stops retrying).
+
+Permanent failures include: video unavailable, removed, private, members-only, age-restricted, geo-blocked, and premium-only errors.
 
 ---
 
