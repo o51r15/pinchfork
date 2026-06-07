@@ -158,7 +158,9 @@ defmodule Pinchflat.Downloading.MediaDownloader do
     {:ok, options} = DownloadOptionBuilder.build(item_with_preloads, override_opts)
     force_use_cookies = Keyword.get(override_opts, :force_use_cookies, false)
     source_uses_cookies = Sources.use_cookies?(item_with_preloads.source, :downloading)
-    should_use_cookies = force_use_cookies || source_uses_cookies
+    # When client_override is set, the alternate player client doesn't support cookies
+    client_bypasses_cookies = item_with_preloads.source.client_override != nil
+    should_use_cookies = !client_bypasses_cookies && (force_use_cookies || source_uses_cookies)
 
     runner_opts = [output_filepath: output_filepath, use_cookies: should_use_cookies]
 

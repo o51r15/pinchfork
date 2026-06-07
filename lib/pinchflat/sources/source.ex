@@ -42,6 +42,7 @@ defmodule Pinchflat.Sources.Source do
     max_duration_seconds
     download_public_videos
     download_members_videos
+    client_override
   )a
 
   # Expensive API calls are made when a source is inserted/updated so
@@ -95,6 +96,7 @@ defmodule Pinchflat.Sources.Source do
 
     field :download_public_videos, :boolean, default: true
     field :download_members_videos, :boolean, default: false
+    field :client_override, :string, default: nil
 
     field :series_directory, :string
     field :nfo_filepath, :string

@@ -27,6 +27,7 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
         quality_options(media_profile) ++
         sponsorblock_options(media_profile) ++
         output_options(media_item_with_preloads) ++
+        client_override_options(media_item_with_preloads.source) ++
         config_file_options(media_item_with_preloads)
 
     {:ok, built_options}
@@ -231,6 +232,15 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     |> to_string()
     |> String.pad_leading(count, padding)
   end
+
+  # When a source has client_override set, use an alternate yt-dlp player client
+  # that avoids SABR streaming corruption. Note: alternate clients do not support
+  # cookies, so cookies are disabled at the media_downloader level when this is set.
+  defp client_override_options(%{client_override: "sabr_bypass"}) do
+    [{:extractor_args, "youtube:player_client=default,ios"}]
+  end
+
+  defp client_override_options(_source), do: []
 
   defp base_directory do
     Application.get_env(:pinchflat, :media_directory)
