@@ -234,10 +234,15 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   end
 
   # When a source has client_override set, use an alternate yt-dlp player client
-  # that avoids SABR streaming corruption. Note: alternate clients do not support
-  # cookies, so cookies are disabled at the media_downloader level when this is set.
-  defp client_override_options(%{client_override: "sabr_bypass"}) do
-    [{:extractor_args, "youtube:player_client=default,ios"}]
+  # that avoids SABR streaming corruption. The stored value IS the client name.
+  # Note: these alternate clients do not support cookies, so cookies are disabled
+  # at the media_downloader level whenever client_override is non-nil.
+  #
+  # The guard is a whitelist on purpose: only known-good client names ever get
+  # interpolated into the yt-dlp arg, so a stray/legacy stored value can't inject
+  # arbitrary text into the command line (it simply falls through to no override).
+  defp client_override_options(%{client_override: client}) when client in ~w(ios android tv_embedded) do
+    [{:extractor_args, "youtube:player_client=default,#{client}"}]
   end
 
   defp client_override_options(_source), do: []

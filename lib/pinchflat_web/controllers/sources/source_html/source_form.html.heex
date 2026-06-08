@@ -86,25 +86,6 @@
       help="Unchecking still indexes media but it won't be downloaded until you enable this option"
     />
 
-    <.input
-      field={f[:cookie_behaviour]}
-      options={friendly_cookie_behaviours()}
-      type="select"
-      label="Cookie Behaviour"
-      help="Uses your YouTube cookies for this source (if configured). 'When Needed' tries to minimize cookie usage except for certain indexing and downloading tasks. See docs"
-    />
-
-    <.input
-      field={f[:client_override]}
-      options={[
-        {"Default (web client, cookies supported)", nil},
-        {"SABR bypass — alternate client, disables cookies", "sabr_bypass"}
-      ]}
-      type="select"
-      label="Video Client"
-      help="Use SABR bypass if downloads fail with 'Error opening input files: Invalid data found'. Note: this disables cookie support for this source."
-    />
-
     <div class="mt-4 mb-2">
       <label class="mb-1 block text-sm font-medium text-black dark:text-white">Content Availability</label>
       <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Select which videos to download. Unlisted and private videos are always skipped.</p>
@@ -118,28 +99,31 @@
           field={f[:download_members_videos]}
           type="checkbox"
           label="Download members-only videos"
-          help="Includes subscriber-only, premium, and auth-required content. Requires cookies to be configured."
+          help="Includes subscriber-only, premium, and auth-required content. Requires cookies, so it can't be used together with a SABR bypass client below."
         />
       </div>
     </div>
 
-    <section x-show="advancedMode">
-      <.input
-        field={f[:min_duration_seconds]}
-        type="number"
-        label="Minimum Duration (seconds)"
-        min="0"
-        help="Minimum duration of the media to be downloaded. Can be blank"
-      />
+    <.input
+      field={f[:cookie_behaviour]}
+      options={friendly_cookie_behaviours()}
+      type="select"
+      label="Cookie Behaviour"
+      help="Uses your YouTube cookies for this source (if configured). 'When Needed' tries to minimize cookie usage except for certain indexing and downloading tasks. See docs"
+    />
 
-      <.input
-        field={f[:max_duration_seconds]}
-        type="number"
-        label="Maximum Duration (seconds)"
-        min="0"
-        help="Maximum duration of the media to be downloaded. Can be blank"
-      />
-    </section>
+    <.input
+      field={f[:client_override]}
+      options={[
+        {"Default (web client, cookies supported)", nil},
+        {"iOS — SABR bypass, no cookies", "ios"},
+        {"Android — SABR bypass, no cookies", "android"},
+        {"TV Embedded — SABR bypass, no cookies", "tv_embedded"}
+      ]}
+      type="select"
+      label="Video Client"
+      help="Use a SABR bypass client if downloads fail with 'Error opening input files: Invalid data found'. These clients disable cookie support for this source, so they can't fetch members-only content."
+    />
 
     <section x-data={"{ cutoffDate: '#{f[:download_cutoff_date].value}' }"}>
       <.input
@@ -185,6 +169,22 @@
       </p>
 
       <.input
+        field={f[:min_duration_seconds]}
+        type="number"
+        label="Minimum Duration (seconds)"
+        min="0"
+        help="Minimum duration of the media to be downloaded. Can be blank"
+      />
+
+      <.input
+        field={f[:max_duration_seconds]}
+        type="number"
+        label="Maximum Duration (seconds)"
+        min="0"
+        help="Maximum duration of the media to be downloaded. Can be blank"
+      />
+
+      <.input
         field={f[:title_filter_regex]}
         type="text"
         label="Title Filter Regex"
@@ -219,8 +219,13 @@
 
     <.button class="my-10 sm:mb-7.5 w-full sm:w-auto" rounding="rounded-lg">Save Source</.button>
 
-    <div class="rounded-sm dark:bg-meta-4 p-4 md:p-6 mb-5">
-      <.fast_indexing_help />
-    </div>
+    <details class="rounded-sm dark:bg-meta-4 p-4 md:p-6 mb-5">
+      <summary class="cursor-pointer font-medium text-black dark:text-white">
+        Fast Indexing &mdash; how it works (worth a read)
+      </summary>
+      <div class="mt-4">
+        <.fast_indexing_help />
+      </div>
+    </details>
   </section>
 </.simple_form>

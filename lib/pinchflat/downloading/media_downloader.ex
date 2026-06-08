@@ -25,7 +25,7 @@ defmodule Pinchflat.Downloading.MediaDownloader do
   returned by yt-dlp. Encountered errors are saved to the Media Item record. Saves
   the entire metadata response to the associated media_metadata record.
 
-  NOTE: related methods (like the download worker) won't download if Pthe media item's source
+  NOTE: related methods (like the download worker) won't download if the media item's source
   is set to not download media. However, I'm not enforcing that here since I need this for testing.
   This may change in the future but I'm not stressed.
 
@@ -209,6 +209,12 @@ defmodule Pinchflat.Downloading.MediaDownloader do
     ]
   end
 
+  # NOTE: "Sign in to confirm" and the members-only string ALSO appear in
+  # MediaDownloadWorker.permanent_failure_strings/0. That overlap is intentional and
+  # order-dependent: this cookie-retry path runs FIRST, during the download attempt.
+  # Only if cookies aren't allowed for the source, or the retry-with-cookies also fails,
+  # do we reach the worker's classifier — at which point the failure really is permanent.
+  # If you edit one list, check the other.
   defp recoverable_cookie_errors do
     [
       "Sign in to confirm",

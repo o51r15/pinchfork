@@ -153,6 +153,12 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
     end
   end
 
+  # NOTE: some of these strings (the members/sign-in ones) ALSO appear in
+  # MediaDownloader.recoverable_cookie_errors/0. That overlap is intentional and
+  # order-dependent: the downloader's cookie-retry runs FIRST during the download
+  # attempt. We only reach this classifier after that retry was unavailable or also
+  # failed, so by the time a members/sign-in error lands here it really is permanent.
+  # If you edit one list, check the other.
   defp permanent_failure_strings do
     [
       # Deleted or removed
