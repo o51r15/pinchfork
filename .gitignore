@@ -45,3 +45,8 @@ scratchpad.md
 # Database files
 *.db
 *.db-*
+
+# Local-only Claude working notes / handoff logs — never commit
+DEVLOG.md
+*.handoff.md
+/handoff-logs/
