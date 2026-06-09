@@ -158,8 +158,10 @@ defmodule Pinchflat.Media.MediaQuery do
         dynamic([mi], true)
 
       trimmed ->
-        tsquery = build_tsquery(trimmed)
-        dynamic([mi], fragment("search_vector @@ to_tsquery('english', ?)", ^tsquery))
+        case build_tsquery(trimmed) do
+          "" -> dynamic([mi], true)
+          tsquery -> dynamic([mi], fragment("search_vector @@ to_tsquery('simple', ?)", ^tsquery))
+        end
     end
   end
 
@@ -191,38 +193,55 @@ defmodule Pinchflat.Media.MediaQuery do
         query
 
       trimmed ->
-        tsquery = build_tsquery(trimmed)
+        case build_tsquery(trimmed) do
+          "" ->
+            query
 
-        from(mi in query,
-          where: fragment("search_vector @@ to_tsquery('english', ?)", ^tsquery),
-          select_merge: %{
-            matching_search_term:
-              fragment("""
-                coalesce(ts_headline('english', ?, to_tsquery('english', ?),
-                  'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5, ShortWord=3'), '')
-                || ' ' ||
-                coalesce(ts_headline('english', ?, to_tsquery('english', ?),
-                  'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5'), '')
-              """, mi.title, ^tsquery, mi.description, ^tsquery)
-          },
-          order_by: [desc: fragment("ts_rank(search_vector, to_tsquery('english', ?))", ^tsquery)]
-        )
+          tsquery ->
+            from(mi in query,
+              where: fragment("search_vector @@ to_tsquery('simple', ?)", ^tsquery),
+              select_merge: %{
+                matching_search_term:
+                  fragment(
+                    """
+                      coalesce(ts_headline('simple', ?, to_tsquery('simple', ?),
+                        'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5, ShortWord=3'), '')
+                      || ' ' ||
+                      coalesce(ts_headline('simple', ?, to_tsquery('simple', ?),
+                        'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=20, MinWords=5'), '')
+                    """,
+                    mi.title,
+                    ^tsquery,
+                    mi.description,
+                    ^tsquery
+                  )
+              },
+              order_by: [desc: fragment("ts_rank(search_vector, to_tsquery('simple', ?))", ^tsquery)]
+            )
+        end
     end
   end
 
   # Converts a plain search term into a Postgres tsquery string.
   # Each whitespace-separated word becomes a prefix-match term joined with &.
   # Example: "hello world" -> "hello:* & world:*"
-  # This gives similar behaviour to the old SQLite FTS5 trigram tokenizer:
-  # partial word matches are supported and multiple words must all be present.
+  #
+  # Combined with the 'simple' text-search config, this gives behaviour close to
+  # the old SQLite trigram tokenizer: prefix/partial word matches, language-agnostic,
+  # and all words must be present.
+  #
+  # Sanitization: every character that isn't alphanumeric or a hyphen is stripped,
+  # which removes all tsquery operators and prevents injection. Tokens that contain
+  # no alphanumeric character (e.g. a lone "-") are then dropped, because something
+  # like "-:*" is INVALID tsquery and would make to_tsquery/2 raise. If nothing
+  # usable remains, build_tsquery returns "" and the caller skips the search filter.
   defp build_tsquery(term) do
     term
     |> String.trim()
     |> String.replace(~r/\s+/, " ")
     |> String.split(" ")
-    |> Enum.reject(&(&1 == ""))
     |> Enum.map(fn word -> Regex.replace(~r/[^a-zA-Z0-9\-]/, word, "") end)
-    |> Enum.reject(&(&1 == ""))
+    |> Enum.reject(fn word -> not Regex.match?(~r/[a-zA-Z0-9]/, word) end)
     |> Enum.map_join(" & ", fn word -> "#{word}:*" end)
   end
 end
