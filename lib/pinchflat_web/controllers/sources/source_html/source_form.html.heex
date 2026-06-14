@@ -99,7 +99,7 @@
           field={f[:download_members_videos]}
           type="checkbox"
           label="Download members-only videos"
-          help="Includes subscriber-only, premium, and auth-required content. Requires cookies, so it can't be used together with a SABR bypass client below."
+          help="Includes subscriber-only, premium, and auth-required content. Requires cookies, so it can't be used with a cookie-incompatible Video Client (see Advanced Options)."
         />
       </div>
     </div>
@@ -110,19 +110,6 @@
       type="select"
       label="Cookie Behaviour"
       help="Uses your YouTube cookies for this source (if configured). 'When Needed' tries to minimize cookie usage except for certain indexing and downloading tasks. See docs"
-    />
-
-    <.input
-      field={f[:client_override]}
-      options={[
-        {"Default (web client, cookies supported)", nil},
-        {"iOS — SABR bypass, no cookies", "ios"},
-        {"Android — SABR bypass, no cookies", "android"},
-        {"TV Embedded — SABR bypass, no cookies", "tv_embedded"}
-      ]}
-      type="select"
-      label="Video Client"
-      help="Use a SABR bypass client if downloads fail with 'Error opening input files: Invalid data found'. These clients disable cookie support for this source, so they can't fetch members-only content."
     />
 
     <section x-data={"{ cutoffDate: '#{f[:download_cutoff_date].value}' }"}>
@@ -215,6 +202,32 @@
           x-model.fill="inputValue"
         />
       </section>
+
+      <.input
+        field={f[:client_override]}
+        options={[
+          {"Default (recommended — yt-dlp picks the best client)", nil},
+          {"Cookie-compatible (members-only & private content work)",
+           [
+             {"web_creator — recommended override; clean + cookies", "web_creator,tv"},
+             {"tv — clean, cookie-capable", "tv"},
+             {"web_safari — cookies; needs the POT sidecar for SABR", "web_safari"},
+             {"mweb — cookies; needs the POT sidecar", "mweb"},
+             {"web — cookies; SABR-only, needs the POT sidecar", "web"}
+           ]},
+          {"⚠ Cookie-INCOMPATIBLE (members-only & private will NOT work)",
+           [
+             {"android_vr — no token needed; no cookies; no 'made for kids'", "android_vr"},
+             {"android — no cookies; needs the POT sidecar", "android"},
+             {"ios — no cookies; currently broken on this binary", "ios"},
+             {"tv_simply — no cookies; needs the POT sidecar", "tv_simply"}
+           ]}
+        ]}
+        type="select"
+        label="Video Client (advanced)"
+        help="Leave as Default unless downloads fail. Overrides which yt-dlp player client(s) are used. Cookie-incompatible clients can't fetch members-only or private content — saving is blocked if you pick one while members-only downloads or cookies are enabled. Most overrides need the bgutil POT provider sidecar running to avoid SABR/token errors."
+        html_help={false}
+      />
     </section>
 
     <.button class="my-10 sm:mb-7.5 w-full sm:w-auto" rounding="rounded-lg">Save Source</.button>

@@ -114,6 +114,17 @@ defmodule Pinchflat.YtDlp.CommandRunner do
     [
       :windows_filenames,
       :quiet,
+      # Load the bgutil POT provider plugin from the mounted plugins directory.
+      # The plugin is the EXTRACTED contents of bgutil-ytdlp-pot-provider.zip, laid out as:
+      #   /config/yt-dlp-plugins/bgutil/yt_dlp_plugins/extractor/*.py  (+ pyproject.toml)
+      # (bind-mounted from the host at /home/o51r15/docker/pinchfork/yt-dlp-plugins/).
+      # IMPORTANT: the zip must be EXTRACTED into the package dir, not dropped in as a zip —
+      # the verified-working structure requires the yt_dlp_plugins/extractor/ tree on disk.
+      # This must be in global_options so it applies to every yt-dlp invocation
+      # (indexing, downloading, version checks, etc.) — the plugin registers itself
+      # at startup and yt-dlp uses it whenever a PO Token is needed. The base_url that
+      # tells the plugin WHERE the provider is lives in DownloadOptionBuilder (downloads only).
+      plugin_dirs: "/config/yt-dlp-plugins",
       cache_dir: Path.join(Application.get_env(:pinchflat, :tmpfile_directory), "yt-dlp-cache")
     ]
   end

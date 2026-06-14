@@ -131,26 +131,63 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
   defp action_on_error(media_item, message) do
     message_str = to_string(message)
 
-    if String.contains?(message_str, permanent_failure_strings()) do
-      Logger.error("yt-dlp download permanently failed: #{inspect(message)}")
+    cond do
+      # PO Token errors: the bgutil POT provider sidecar is missing, unreachable, or the plugin
+      # didn't load. These are TRANSIENT on purpose — retrying won't help until the sidecar is
+      # running, but once it is, the item self-heals on the next retry with NO manual intervention
+      # (unlike permanent, which sets prevent_download and would require manual un-prevention).
+      # Checked BEFORE permanent_failure_strings so a token error never gets misfiled as permanent.
+      # Distinct log line so logs point at the real cause (sidecar) rather than a generic retry.
+      String.contains?(message_str, po_token_error_strings()) ->
+        Logger.error(
+          "yt-dlp download failed: PO Token unavailable (check the bgutil-provider sidecar is " <>
+            "running and the plugin loaded). Will retry — item self-heals once tokens are available. " <>
+            "#{inspect(message)}"
+        )
 
-      Media.update_media_item(media_item, %{
-        prevent_download: true,
-        error_type: "permanent",
-        last_error: message_str
-      })
+        Media.update_media_item(media_item, %{
+          error_type: "transient",
+          last_error: message_str
+        })
 
-      {:ok, :non_retry}
-    else
-      Logger.error("yt-dlp download failed (will retry): #{inspect(message)}")
+        {:error, :download_failed}
 
-      Media.update_media_item(media_item, %{
-        error_type: "transient",
-        last_error: message_str
-      })
+      String.contains?(message_str, permanent_failure_strings()) ->
+        Logger.error("yt-dlp download permanently failed: #{inspect(message)}")
 
-      {:error, :download_failed}
+        Media.update_media_item(media_item, %{
+          prevent_download: true,
+          error_type: "permanent",
+          last_error: message_str
+        })
+
+        {:ok, :non_retry}
+
+      true ->
+        Logger.error("yt-dlp download failed (will retry): #{inspect(message)}")
+
+        Media.update_media_item(media_item, %{
+          error_type: "transient",
+          last_error: message_str
+        })
+
+        {:error, :download_failed}
     end
+  end
+
+  # PO Token error markers. The GVS-token warning yt-dlp emits is:
+  #   "<client> client https formats require a GVS PO Token which was not provided"
+  # We match the stable, distinctive fragments. NOTE: deliberately does NOT include the
+  # "Sign in to confirm you're not a bot" string — that one is the bot-check (a different,
+  # genuinely permanent condition already covered by permanent_failure_strings via "Sign in
+  # to confirm"), and the sidecar does NOT reliably fix it. Keep these two concerns separate.
+  defp po_token_error_strings do
+    [
+      "PO Token",
+      "po_token",
+      "youtubepot",
+      "requires a GVS"
+    ]
   end
 
   # NOTE: some of these strings (the members/sign-in ones) ALSO appear in

@@ -28,9 +28,11 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
         sponsorblock_options(media_profile) ++
         output_options(media_item_with_preloads) ++
         client_override_options(media_item_with_preloads.source) ++
+        pot_provider_options() ++
+        download_resilience_options() ++
         config_file_options(media_item_with_preloads)
 
-    {:ok, built_options}
+    {:ok, apply_local_staging(built_options)}
   end
 
   @doc """
@@ -233,19 +235,148 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
     |> String.pad_leading(count, padding)
   end
 
-  # When a source has client_override set, use an alternate yt-dlp player client
-  # that avoids SABR streaming corruption. The stored value IS the client name.
-  # Note: these alternate clients do not support cookies, so cookies are disabled
-  # at the media_downloader level whenever client_override is non-nil.
+  # When a source has client_override set, use an alternate yt-dlp player client.
+  # The stored value is a comma-separated chain of client names (e.g. "web_creator,tv").
+  # Multi-client chains make yt-dlp MERGE formats from all legs (not stop at the first),
+  # so a fallback leg's formats stay available alongside the lead leg's — this is intentional,
+  # not a bug. The chain REPLACES yt-dlp's adaptive default entirely (no `default,` prefix).
   #
-  # The guard is a whitelist on purpose: only known-good client names ever get
-  # interpolated into the yt-dlp arg, so a stray/legacy stored value can't inject
-  # arbitrary text into the command line (it simply falls through to no override).
-  defp client_override_options(%{client_override: client}) when client in ~w(ios android tv_embedded) do
-    [{:extractor_args, "youtube:player_client=default,#{client}"}]
+  # Cookie-compatibility is enforced at the media_downloader level: any chain leg that is
+  # in the cookie-incompatible set causes cookies to be disabled for that source.
+  # See Source.client_override_supports_cookies?/1.
+  #
+  # The per-leg whitelist guard is intentional: only legs in @all_known_clients ever get
+  # interpolated into the yt-dlp arg, so a stray/legacy stored value falls through to no
+  # override rather than injecting arbitrary text into the command line.
+  defp client_override_options(%{client_override: chain}) when is_binary(chain) do
+    legs = String.split(chain, ",", trim: true)
+
+    if legs != [] and Enum.all?(legs, &(&1 in Source.all_known_clients())) do
+      [{:extractor_args, "youtube:player_client=#{Enum.join(legs, ",")}"}]
+    else
+      # Stray or fully-unknown chain: fall through to no override (injection-safe)
+      []
+    end
   end
 
   defp client_override_options(_source), do: []
+
+  # Passes the bgutil POT provider base_url to yt-dlp so it knows where to fetch
+  # GVS PO Tokens. Uses a separate extractor namespace (youtubepot-bgutilhttp:) from
+  # the player_client arg (youtube:) — these MUST remain separate extractor_args entries;
+  # do NOT merge them into a single string. yt-dlp accumulates repeated --extractor-args
+  # flags, and the CommandRunner serializer emits each keyword-list entry as its own flag.
+  # The sidecar container is reachable at bgutil-provider:4416 on the Docker internal network.
+  defp pot_provider_options do
+    [{:extractor_args, "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416"}]
+  end
+
+  # Hardens downloads against fragment truncation — the root cause of intermittent
+  # "Postprocessing: Error opening input files: Invalid data found" failures. That error
+  # is ffmpeg refusing to mux a video/audio file that arrived incomplete: a fragment came
+  # back short or empty mid-download (common under load and over SABR streaming), so the
+  # file on disk is corrupt before the merge step ever runs. A valid PO Token gets a valid
+  # stream URL but does nothing for bytes dropped in transit — so this is a separate fix.
+  #
+  # - fragment_retries "infinite": never give up on an individual fragment (the single most
+  #   important flag for this failure mode).
+  # - retries 10 / file_access_retries 5: survive transient network and local FS hiccups.
+  # - extractor_retries 3: retry the metadata/extraction step on transient extractor errors.
+  # - abort_on_unavailable_fragment FALSE via :skip_unavailable_fragments is intentionally
+  #   NOT set — we want a missing fragment to RETRY (and ultimately fail loudly so the item
+  #   stays transient and re-queues), not to silently produce a file with a hole in it.
+  #
+  # Note on concurrency: this does not cap parallel fragments/downloads here. If truncation
+  # persists under heavy queues, the lever is YT_DLP_WORKER_CONCURRENCY (worker count) and/or
+  # a global rate limit in Settings — not a per-download flag. Kept out of scope deliberately.
+  defp download_resilience_options do
+    [
+      {:fragment_retries, "infinite"},
+      {:retries, 10},
+      {:file_access_retries, 5},
+      {:extractor_retries, 3}
+    ]
+  end
+
+  # Stages ALL of yt-dlp's intermediate work — fragment downloads, the merge of separate
+  # video+audio streams, the [FixupM3u8] .temp.mp4 write-then-rename used when YouTube forces
+  # SABR down the HLS/m3u8 path, and every postprocessor temp file (thumbnail convert, metadata
+  # embed, etc.) — on a LOCAL host disk. Only the finished files are moved to the final output
+  # location, in a single move per file at the very end.
+  #
+  # WHY: the production downloads directory is an SMB-mounted network drive. The residual
+  # "Postprocessing: Error opening input files: Invalid data found when processing input"
+  # failures (~6%) only reproduce against that mount — every hand-run to local /tmp succeeded.
+  # The working hypothesis is that the temp write/rename/reopen over SMB corrupts the
+  # intermediate file mid-pipeline. Staging everything locally eliminates the mount as a
+  # variable. This is deliberately a VARIABLE-ELIMINATION step, NOT a confirmed fix: if failures
+  # vanish it confirms the SMB hypothesis; if they persist the mount is exonerated.
+  #
+  # HOW: yt-dlp's --paths (-P) accepts "home:<dir>" (where final files land) and "temp:<dir>"
+  # (where all intermediates go, then move to home). CRUCIAL CONSTRAINT: --paths is silently
+  # IGNORED if --output is an ABSOLUTE path (yt-dlp prints "WARNING: --paths is ignored since an
+  # absolute path is given in output template"). Pinchflat builds absolute outputs
+  # (Path.join(base_directory(), ...)), so to make staging actually take effect we must:
+  #   1. pass the base dir as "home:<base>",
+  #   2. rewrite every {:output, ...} entry to be RELATIVE to that base (strip the base prefix),
+  #   3. pass "temp:/downloads-staging".
+  # We do this transform HERE on the already-built options rather than changing build_output_path
+  # itself, because build_output_path_for/1 is ALSO called by external callers (filepath
+  # prediction, existence checks) that depend on it returning the ABSOLUTE final path. Those must
+  # keep seeing absolute paths; only the yt-dlp command options get the relative+home treatment.
+  #
+  # Gated on LOCALTEMP=true. When absent, options pass through completely unchanged (true no-op).
+  defp apply_local_staging(options) do
+    if System.get_env("LOCALTEMP") == "true" do
+      base = base_directory()
+
+      relative_options = Enum.map(options, fn opt -> relativize_output_option(opt, base) end)
+
+      [{:paths, "home:#{base}"}, {:paths, "temp:/downloads-staging"}] ++ relative_options
+    else
+      options
+    end
+  end
+
+  # Rewrites an {:output, ...} option from absolute to relative-to-base so that yt-dlp's
+  # --paths home:/temp: take effect. Handles both the plain video output ("/base/Chan/x.ext")
+  # and typed outputs that carry a "<type>:" prefix ("thumbnail:/base/Chan/x-thumb.ext").
+  # Non-output options, and output values that don't start with the base prefix, pass through
+  # untouched.
+  defp relativize_output_option({:output, value}, base) do
+    {:output, relativize_output_value(value, base)}
+  end
+
+  defp relativize_output_option(other, _base), do: other
+
+  defp relativize_output_value(value, base) do
+    case String.split(value, ":", parts: 2) do
+      # Typed output, e.g. "thumbnail:/base/..." — strip base from the path portion only,
+      # preserving the "<type>:" prefix. yt-dlp output types are bare words (no "/"), so a
+      # colon that appears inside a path/filename (e.g. "/base/Channel: News/x.ext") won't be
+      # mistaken for a type prefix. Also guards against Windows-style "C:\..." for the same reason.
+      [type, path] when path != "" and type != "" ->
+        if not String.contains?(type, "/") and String.starts_with?(path, base) do
+          "#{type}:#{strip_base(path, base)}"
+        else
+          value
+        end
+
+      # Plain output, e.g. "/base/Chan/x.ext"
+      _ ->
+        if String.starts_with?(value, base) do
+          strip_base(value, base)
+        else
+          value
+        end
+    end
+  end
+
+  defp strip_base(path, base) do
+    path
+    |> String.replace_prefix(base, "")
+    |> String.trim_leading("/")
+  end
 
   defp base_directory do
     Application.get_env(:pinchflat, :media_directory)

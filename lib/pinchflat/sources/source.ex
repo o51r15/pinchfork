@@ -14,6 +14,48 @@ defmodule Pinchflat.Sources.Source do
   alias Pinchflat.Profiles.MediaProfile
   alias Pinchflat.Metadata.SourceMetadata
 
+  # ---------------------------------------------------------------------------
+  # Client partition constants
+  # IMPORTANT: These lists are empirically verified against the 2026.06.09 yt-dlp
+  # binary. Re-verify after major yt-dlp updates by probing each client with:
+  #   docker exec pinchfork yt-dlp -v --simulate --extractor-args \
+  #     "youtube:player_client=<client>" <url> 2>&1 | grep -iE "sabr|po token|skipp"
+  # Clean output = token-free. SABR/PO-token warnings = needs sidecar.
+  # ---------------------------------------------------------------------------
+
+  # Clients that accept account cookies — can reach members-only, age-restricted,
+  # and private content when cookies are configured.
+  @cookie_compatible_clients ~w(web web_safari web_creator mweb tv web_embedded web_music)
+
+  # Clients that do NOT support account cookies — members-only and private content
+  # will silently fail if cookies are expected. Setting client_override to any of
+  # these while also enabling members videos or cookie behaviour is blocked at save.
+  @cookie_incompatible_clients ~w(android ios android_vr tv_simply)
+
+  @all_known_clients @cookie_compatible_clients ++ @cookie_incompatible_clients
+
+  @doc """
+  Returns all known client names. Used by DownloadOptionBuilder to validate
+  chains before interpolating them into a yt-dlp command (injection safety).
+  """
+  def all_known_clients, do: @all_known_clients
+
+  @doc """
+  Returns true if the given client_override value supports account cookies.
+
+  nil means "no override / use yt-dlp's adaptive default" and is considered
+  cookie-compatible (the default clients can carry cookies).
+
+  A comma-separated chain is cookie-compatible only if ALL legs are compatible.
+  """
+  def client_override_supports_cookies?(nil), do: true
+
+  def client_override_supports_cookies?(override) when is_binary(override) do
+    override
+    |> String.split(",", trim: true)
+    |> Enum.all?(&(&1 in @cookie_compatible_clients))
+  end
+
   @allowed_fields ~w(
     enabled
     collection_name
@@ -128,6 +170,7 @@ defmodule Pinchflat.Sources.Source do
 
     source
     |> cast(attrs, @allowed_fields)
+    |> normalize_client_override()
     |> dynamic_default(:custom_name, fn cs -> get_field(cs, :collection_name) end)
     |> dynamic_default(:uuid, fn _ -> Ecto.UUID.generate() end)
     |> validate_required(required_fields)
@@ -137,6 +180,8 @@ defmodule Pinchflat.Sources.Source do
     # Ensures it ends with `.{{ ext }}` or `.%(ext)s` or similar (with a little wiggle room)
     |> validate_format(:output_path_template_override, MediaProfile.ext_regex(), message: "must end with .{{ ext }}")
     |> validate_format(:original_url, youtube_channel_or_playlist_regex(), message: "must be a channel or playlist URL")
+    |> validate_client_override()
+    |> validate_client_cookie_coherence()
     |> cast_assoc(:metadata, with: &SourceMetadata.changeset/2, required: false)
     |> unique_constraint([:collection_id, :media_profile_id, :title_filter_regex], error_key: :original_url)
   end
@@ -168,6 +213,67 @@ defmodule Pinchflat.Sources.Source do
     # Also matches if the string does NOT contain youtube.com or youtu.be. This preserves my tenuous support
     # for non-youtube sources.
     ~r<^(?:(?!youtube\.com/(watch|shorts|embed)|youtu\.be).)*$>
+  end
+
+  # Normalise empty string to nil so client_override has one consistent "no override"
+  # representation. The form can submit "" for the default/blank option.
+  defp normalize_client_override(changeset) do
+    case get_change(changeset, :client_override) do
+      "" -> put_change(changeset, :client_override, nil)
+      _ -> changeset
+    end
+  end
+
+  # Validates that every comma-separated leg in client_override is a known client name.
+  # Unknown/legacy values (e.g. old "tv_embedded") are rejected at save time rather than
+  # silently falling through — the fallthrough is at the downloader level (injection safety),
+  # but a saved unknown value is a config mistake worth surfacing.
+  defp validate_client_override(changeset) do
+    case get_field(changeset, :client_override) do
+      nil ->
+        changeset
+
+      chain ->
+        unknown_legs =
+          chain
+          |> String.split(",", trim: true)
+          |> Enum.reject(&(&1 in @all_known_clients))
+
+        if unknown_legs == [] do
+          changeset
+        else
+          add_error(changeset, :client_override, "contains unknown client(s): #{Enum.join(unknown_legs, ", ")}")
+        end
+    end
+  end
+
+  # Hard block: if any leg of the override chain is cookie-incompatible AND the source
+  # is configured to use cookies (members videos enabled OR cookie_behaviour is not
+  # :disabled), reject the save with an explanatory error.
+  #
+  # Uses get_field (not get_change) so it sees unchanged-but-present DB values — a source
+  # that already has members videos enabled will trip this if a cookie-incompatible client
+  # is later applied, even if members_videos wasn't part of the current changeset.
+  defp validate_client_cookie_coherence(changeset) do
+    client_override = get_field(changeset, :client_override)
+    members_enabled = get_field(changeset, :download_members_videos)
+    cookie_behaviour = get_field(changeset, :cookie_behaviour)
+
+    cookies_in_use = members_enabled == true || cookie_behaviour != :disabled
+    incompatible_client = not Source.client_override_supports_cookies?(client_override)
+
+    if cookies_in_use && incompatible_client do
+      add_error(
+        changeset,
+        :client_override,
+        "This video client doesn't support cookies, but this source uses them " <>
+          "(members-only videos or a cookie behaviour other than Disabled). " <>
+          "Choose a cookie-compatible client (web_creator, tv, mweb, web, or web_safari), " <>
+          "or turn off members-only downloads and set Cookie Behaviour to Disabled."
+      )
+    else
+      changeset
+    end
   end
 
   defp validate_title_regex(%{changes: %{title_filter_regex: regex}} = changeset) when is_binary(regex) do

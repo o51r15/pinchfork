@@ -456,6 +456,73 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilderTest do
     end
   end
 
+  describe "build/1 when testing local temp staging options" do
+    setup do
+      # Ensure no ambient LOCALTEMP leaks in from the host environment, and restore
+      # whatever was there (usually nothing) after each test in this block.
+      original = System.get_env("LOCALTEMP")
+
+      on_exit(fn ->
+        case original do
+          nil -> System.delete_env("LOCALTEMP")
+          val -> System.put_env("LOCALTEMP", val)
+        end
+      end)
+
+      :ok
+    end
+
+    test "adds home: and temp: paths when LOCALTEMP is \"true\"", %{media_item: media_item} do
+      System.put_env("LOCALTEMP", "true")
+
+      assert {:ok, res} = DownloadOptionBuilder.build(media_item)
+
+      assert {:paths, "home:/tmp/test/media"} in res
+      assert {:paths, "temp:/downloads-staging"} in res
+    end
+
+    test "rewrites the absolute video output to be relative to the base when LOCALTEMP is \"true\"",
+         %{media_item: media_item} do
+      System.put_env("LOCALTEMP", "true")
+
+      assert {:ok, res} = DownloadOptionBuilder.build(media_item)
+
+      # Default template is "{{ title }}.%(ext)s" → absolute "/tmp/test/media/%(title)S.%(ext)s"
+      # becomes relative "%(title)S.%(ext)s" so yt-dlp's --paths take effect.
+      assert {:output, "%(title)S.%(ext)s"} in res
+      refute {:output, "/tmp/test/media/%(title)S.%(ext)s"} in res
+    end
+
+    test "rewrites the typed thumbnail output to relative, preserving the type prefix", %{media_item: media_item} do
+      media_item = update_media_profile_attribute(media_item, %{download_thumbnail: true})
+      System.put_env("LOCALTEMP", "true")
+
+      assert {:ok, res} = DownloadOptionBuilder.build(media_item)
+
+      assert {:output, "thumbnail:%(title)S-thumb.%(ext)s"} in res
+      refute {:output, "thumbnail:/tmp/test/media/%(title)S-thumb.%(ext)s"} in res
+    end
+
+    test "leaves options completely unchanged when LOCALTEMP is unset", %{media_item: media_item} do
+      System.delete_env("LOCALTEMP")
+
+      assert {:ok, res} = DownloadOptionBuilder.build(media_item)
+
+      refute Keyword.has_key?(res, :paths)
+      # Output stays absolute (the external-caller contract is unaffected).
+      assert {:output, "/tmp/test/media/%(title)S.%(ext)s"} in res
+    end
+
+    test "leaves options unchanged when LOCALTEMP is any other value", %{media_item: media_item} do
+      System.put_env("LOCALTEMP", "false")
+
+      assert {:ok, res} = DownloadOptionBuilder.build(media_item)
+
+      refute Keyword.has_key?(res, :paths)
+      assert {:output, "/tmp/test/media/%(title)S.%(ext)s"} in res
+    end
+  end
+
   defp update_media_profile_attribute(media_item_with_preloads, attrs) do
     media_item_with_preloads.source.media_profile
     |> Profiles.change_media_profile(attrs)

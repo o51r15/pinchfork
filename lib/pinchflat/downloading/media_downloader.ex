@@ -17,6 +17,7 @@ defmodule Pinchflat.Downloading.MediaDownloader do
   alias Pinchflat.Metadata.MetadataFileHelpers
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.Downloading.DownloadOptionBuilder
+  alias Pinchflat.Sources.Source
 
   alias Pinchflat.YtDlp.Media, as: YtDlpMedia
 
@@ -158,8 +159,12 @@ defmodule Pinchflat.Downloading.MediaDownloader do
     {:ok, options} = DownloadOptionBuilder.build(item_with_preloads, override_opts)
     force_use_cookies = Keyword.get(override_opts, :force_use_cookies, false)
     source_uses_cookies = Sources.use_cookies?(item_with_preloads.source, :downloading)
-    # When client_override is set, the alternate player client doesn't support cookies
-    client_bypasses_cookies = item_with_preloads.source.client_override != nil
+    # client_override_supports_cookies? returns true for nil (no override) and for any chain
+    # where ALL legs are cookie-compatible. Cookie-incompatible clients (android, ios, etc.)
+    # return false and suppress cookies. Cookie-compatible overrides (web_creator, tv, etc.)
+    # return true and allow cookies — this is the KEY fix from the old `!= nil` logic which
+    # incorrectly disabled cookies for ALL overrides, including cookie-capable ones.
+    client_bypasses_cookies = not Source.client_override_supports_cookies?(item_with_preloads.source.client_override)
     should_use_cookies = !client_bypasses_cookies && (force_use_cookies || source_uses_cookies)
 
     runner_opts = [output_filepath: output_filepath, use_cookies: should_use_cookies]
