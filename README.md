@@ -144,11 +144,18 @@ services:
       - TZ=America/New_York
       - DATABASE_URL=ecto://pinchflat:your_password_here@pinchflat-db/pinchflat
       - POOL_SIZE=10
+      # Optional — only if /downloads is a NETWORK mount (SMB/NFS). Stages all yt-dlp
+      # work on a local disk and moves finished files over in one operation. Requires
+      # the /downloads-staging volume below. See the Local Temp Staging section.
+      # - LOCALTEMP=true
     ports:
       - "8945:8945"
     volumes:
       - /path/to/config:/config
       - /path/to/downloads:/downloads
+      # Local staging target for LOCALTEMP above — MUST be a real LOCAL disk (not the
+      # network mount, not a container path). Uncomment together with LOCALTEMP.
+      # - /path/to/local/staging:/downloads-staging
 
 volumes:
   pinchflat_pgdata:
