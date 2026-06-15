@@ -3,9 +3,13 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchflat?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchflat/releases)
 
-# Pinchflat (o51r15 fork)
+# Pinchfork
 
-*logo by [@hernandito](https://github.com/hernandito)*
+<p align="center">
+  <img src="priv/static/images/pinchfork-logo.png" alt="Pinchfork" width="512">
+</p>
+
+*a fork of [Pinchflat](https://github.com/kieraneglin/pinchflat)*
 
 ## Table of contents
 
@@ -58,6 +62,7 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 - [x] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
 - [x] **SABR bypass / PO Token provider** — Per-source Video Client override plus an optional bgutil PO Token sidecar to work around YouTube SABR-corrupted downloads. Cookie ↔ bypass mutual-exclusivity enforced in code. See [SABR bypass / PO Token provider](#sabr-bypass--po-token-provider).
 - [x] **Local temp staging** — `LOCALTEMP` env var to stage all yt-dlp intermediate work on a local disk and move finished files to a (possibly network-mounted) downloads directory in one operation. See [Local Temp Staging](#local-temp-staging).
+- [x] **v0.3.0** — Per-item staging cleanup (each download isolated under a per-id staging dir, orphans auto-cleaned on failure/restart/success) and a home-page failure-state split: the Pending tab is now **Pending / Retry / Failed**, with a live retry countdown and Retry Now / Force Retry actions.
 - [x] **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart. Automatically retries them after 30 minutes. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#860](https://github.com/kieraneglin/pinchflat/pull/860))*
 - [x] **yt-dlp version management** — `YT_DLP_VERSION` environment variable to control update behavior: `stable` (default), `nightly`, `master`, `pinned`/`none` to disable, or a specific version string. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#858](https://github.com/kieraneglin/pinchflat/pull/858))*
 - [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
@@ -99,25 +104,24 @@ While you can download individual videos, Pinchflat is best suited for downloadi
 
 ### Docker Compose (with Postgres)
 
-This fork requires a Postgres container alongside the app. A ready-to-use compose file is provided. You will need to build the image locally from this repository.
+This fork is distributed as a prebuilt image: `ghcr.io/o51r15/pinchflat:latest` (or pin a version like `:v0.3.0`). It requires a Postgres container, and a PO Token sidecar is strongly recommended (see [SABR bypass / PO Token provider](#sabr-bypass--po-token-provider)).
 
-**Step 1 — Clone this repo on your server:**
-
-```bash
-git clone https://github.com/o51r15/pinchflat.git /opt/pinchflat-fork
-```
-
-**Step 2 — Create your docker-compose file.** Replace paths and password as needed:
+**Step 1 — Create your compose file.** A complete, annotated sample with all three containers is in the repo at [`docker-compose.sample.yml`](docker-compose.sample.yml). A minimal version:
 
 ```yaml
 services:
-  pinchflat-db:
+  bgutil-provider:                                  # PO Token sidecar (recommended)
+    container_name: bgutil-provider
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
+    restart: unless-stopped
+
+  pinchflat-db:                                     # Postgres (required)
     container_name: pinchflat-db
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
       POSTGRES_USER: pinchflat
-      POSTGRES_PASSWORD: your_password_here
+      POSTGRES_PASSWORD: your_password_here         # must match DATABASE_URL below
       POSTGRES_DB: pinchflat
     volumes:
       - pinchflat_pgdata:/var/lib/postgresql/data
@@ -127,15 +131,15 @@ services:
       timeout: 5s
       retries: 5
 
-  pinchflat:
+  pinchflat:                                        # the app
     container_name: pinchflat
-    build:
-      context: /opt/pinchflat-fork
-      dockerfile: docker/selfhosted.Dockerfile
+    image: ghcr.io/o51r15/pinchflat:latest
     restart: unless-stopped
     depends_on:
       pinchflat-db:
         condition: service_healthy
+      bgutil-provider:
+        condition: service_started
     environment:
       - TZ=America/New_York
       - DATABASE_URL=ecto://pinchflat:your_password_here@pinchflat-db/pinchflat
@@ -150,15 +154,15 @@ volumes:
   pinchflat_pgdata:
 ```
 
-**Step 3 — Build and start:**
+**Step 2 — Start it:**
 
 ```bash
-docker compose -f /path/to/your/docker-compose.yml up -d --build
+docker compose -f /path/to/your/docker-compose.yml up -d
 ```
 
-The first build will take several minutes. Migrations run automatically at startup. The app will be available at `http://your-server:8945`.
+Migrations run automatically at startup. The app will be available at `http://your-server:8945`.
 
-> **Note:** The `--build` flag is required on first run and after any code changes. The Elixir release is compiled into the image.
+> **Updating:** `docker compose pull && docker compose up -d` pulls the newest image and recreates the container.
 
 ### Environment Variables
 
