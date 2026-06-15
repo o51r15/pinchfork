@@ -56,6 +56,20 @@
         session: %{"media_state" => "pending"}
       )}
     </:tab>
+    <:tab title="Retry" id="retry">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "retry"}
+      )}
+    </:tab>
+    <:tab title="Failed" id="failed">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "failed"}
+      )}
+    </:tab>
     <:tab title="Active Tasks" id="active-tasks">
       {live_render(@conn, Pinchflat.Pages.JobTableLive)}
     </:tab>

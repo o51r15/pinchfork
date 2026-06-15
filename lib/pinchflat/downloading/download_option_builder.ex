@@ -8,6 +8,7 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   alias Pinchflat.Media.MediaItem
   alias Pinchflat.Downloading.OutputPathBuilder
   alias Pinchflat.Downloading.QualityOptionBuilder
+  alias Pinchflat.Downloading.StagingPaths
 
   alias Pinchflat.Utils.FilesystemUtils, as: FSUtils
 
@@ -32,7 +33,7 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
         download_resilience_options() ++
         config_file_options(media_item_with_preloads)
 
-    {:ok, apply_local_staging(built_options)}
+    {:ok, apply_local_staging(built_options, media_item_with_preloads)}
   end
 
   @doc """
@@ -319,20 +320,28 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   # (Path.join(base_directory(), ...)), so to make staging actually take effect we must:
   #   1. pass the base dir as "home:<base>",
   #   2. rewrite every {:output, ...} entry to be RELATIVE to that base (strip the base prefix),
-  #   3. pass "temp:/downloads-staging".
+  #   3. pass "temp:<per-item staging dir>".
+  # The temp dir is PER MEDIA_ID (StagingPaths.staging_dir_for/1 → /downloads-staging/<media_id>),
+  # NOT a shared dir. This isolates every intermediate file for an item — including aux files like
+  # the convert/embed thumbnail that orphaned in the 91289 case — under one directory keyed on the
+  # globally-unique, drift-immune YouTube id. That makes orphan cleanup a trivial, collision-proof
+  # directory wipe (StagingCleaner), with no filename matching and no risk of touching a concurrent
+  # download's files. (yt-dlp recreates the relative output subtree INSIDE that per-id dir for
+  # intermediates, then moves finished files to home: — final layout is unchanged.)
   # We do this transform HERE on the already-built options rather than changing build_output_path
   # itself, because build_output_path_for/1 is ALSO called by external callers (filepath
   # prediction, existence checks) that depend on it returning the ABSOLUTE final path. Those must
   # keep seeing absolute paths; only the yt-dlp command options get the relative+home treatment.
   #
   # Gated on LOCALTEMP=true. When absent, options pass through completely unchanged (true no-op).
-  defp apply_local_staging(options) do
+  defp apply_local_staging(options, media_item) do
     if System.get_env("LOCALTEMP") == "true" do
       base = base_directory()
+      temp_dir = StagingPaths.staging_dir_for(media_item)
 
       relative_options = Enum.map(options, fn opt -> relativize_output_option(opt, base) end)
 
-      [{:paths, "home:#{base}"}, {:paths, "temp:/downloads-staging"}] ++ relative_options
+      [{:paths, "home:#{base}"}, {:paths, "temp:#{temp_dir}"}] ++ relative_options
     else
       options
     end

@@ -15,6 +15,7 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
   alias Pinchflat.Media
   alias Pinchflat.Media.FileSyncing
   alias Pinchflat.Downloading.MediaDownloader
+  alias Pinchflat.Downloading.StagingCleaner
 
   alias Pinchflat.Lifecycle.UserScripts.CommandRunner, as: UserScriptRunner
 
@@ -92,6 +93,11 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
     overwrite_behaviour = if should_force || is_quality_upgrade, do: :force_overwrites, else: :no_force_overwrites
     override_opts = [overwrite_behaviour: overwrite_behaviour]
 
+    # Clear any staging orphans left by a prior failed/abandoned/crashed attempt BEFORE starting,
+    # so this attempt never inherits dirty staging state. No-op when local staging is disabled,
+    # and a no-op on a first attempt (the per-item staging dir won't exist yet).
+    StagingCleaner.clean(media_item)
+
     case MediaDownloader.download_for_media_item(media_item, override_opts) do
       {:ok, downloaded_media_item} ->
         {:ok, updated_media_item} =
@@ -103,6 +109,12 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
           })
 
         :ok = FileSyncing.delete_outdated_files(media_item, updated_media_item)
+
+        # On success yt-dlp has already moved the finished files to their final location; remove
+        # the now-empty (or stray-leftover) per-item staging dir so it doesn't accumulate across
+        # re-downloads/quality-upgrades.
+        StagingCleaner.clean(updated_media_item)
+
         run_user_script(:media_downloaded, updated_media_item)
 
         :ok
@@ -130,6 +142,11 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
   defp action_on_error(media_item, message) do
     message_str = to_string(message)
+
+    # The download failed, so any files yt-dlp wrote into this item's staging dir are orphans.
+    # Clear them now so they can't corrupt or confuse the next attempt. No-op when local staging
+    # is disabled. Applies to every classification branch below.
+    StagingCleaner.clean(media_item)
 
     cond do
       # PO Token errors: the bgutil POT provider sidecar is missing, unreachable, or the plugin

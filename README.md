@@ -279,7 +279,9 @@ services:
 
 The staging directory must be on a real local disk — not the network mount, and not a container-internal path — and needs enough free space for the largest in-flight download (plus its intermediates). To disable, remove `LOCALTEMP=true` (the volume mount is harmless if left in place).
 
-> **How it works:** yt-dlp ignores `--paths` when `--output` is an absolute path. To make staging take effect, this fork passes the base directory as `--paths home:<dir>`, the staging directory as `--paths temp:<dir>`, and rewrites the output template to be relative — but only when `LOCALTEMP=true`. With the variable unset, download options are completely unchanged.
+Each download stages into its own per-item subdirectory under `/downloads-staging`, keyed on the video's unique id. Failed or abandoned attempts have their staging files cleaned up automatically (before the next attempt, on failure, and after success), so stale intermediates can't accumulate or interfere with a later retry.
+
+> **How it works:** yt-dlp ignores `--paths` when `--output` is an absolute path. To make staging take effect, this fork passes the base directory as `--paths home:<dir>`, a per-item staging directory as `--paths temp:<dir>/<video-id>`, and rewrites the output template to be relative — but only when `LOCALTEMP=true`. With the variable unset, download options are completely unchanged.
 
 ---
 

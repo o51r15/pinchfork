@@ -47,6 +47,53 @@ let liveSocket = new LiveSocket(document.body.dataset.socketPath, Socket, {
           }
         })
       }
+    },
+    // Live ticking countdown to a media item's next retry time. The target time comes from the
+    // server as an ISO-8601 timestamp in data-retry-at; we compute the remaining time on the
+    // CLIENT every second so it doesn't depend on the (often-wrong) container clock. When the
+    // time is reached we show "due now" — the server will pick the job up on its next poll and a
+    // table refresh will move the item out of the Retry tab.
+    RetryCountdown: {
+      mounted() {
+        this.render()
+        this.timer = setInterval(() => this.render(), 1000)
+      },
+      updated() {
+        this.render()
+      },
+      destroyed() {
+        if (this.timer) clearInterval(this.timer)
+      },
+      render() {
+        const retryAt = this.el.dataset.retryAt
+        if (!retryAt) {
+          this.el.textContent = 'queued'
+          return
+        }
+
+        const diffMs = new Date(retryAt).getTime() - Date.now()
+        if (isNaN(diffMs)) {
+          this.el.textContent = ''
+          return
+        }
+        if (diffMs <= 0) {
+          this.el.textContent = 'due now'
+          return
+        }
+
+        let secs = Math.floor(diffMs / 1000)
+        const h = Math.floor(secs / 3600)
+        secs -= h * 3600
+        const m = Math.floor(secs / 60)
+        const s = secs - m * 60
+
+        const parts = []
+        if (h > 0) parts.push(h + 'h')
+        if (h > 0 || m > 0) parts.push(m + 'm')
+        parts.push(s + 's')
+
+        this.el.textContent = 'in ' + parts.join(' ')
+      }
     }
   }
 })

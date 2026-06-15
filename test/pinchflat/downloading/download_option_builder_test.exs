@@ -472,13 +472,15 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilderTest do
       :ok
     end
 
-    test "adds home: and temp: paths when LOCALTEMP is \"true\"", %{media_item: media_item} do
+    test "adds home: and per-item temp: paths when LOCALTEMP is \"true\"", %{media_item: media_item} do
       System.put_env("LOCALTEMP", "true")
 
       assert {:ok, res} = DownloadOptionBuilder.build(media_item)
 
       assert {:paths, "home:/tmp/test/media"} in res
-      assert {:paths, "temp:/downloads-staging"} in res
+      # Temp path is per-item, keyed on the media_id, so orphan cleanup is a collision-proof
+      # directory wipe.
+      assert {:paths, "temp:/downloads-staging/#{media_item.media_id}"} in res
     end
 
     test "rewrites the absolute video output to be relative to the base when LOCALTEMP is \"true\"",

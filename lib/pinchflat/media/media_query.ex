@@ -138,6 +138,36 @@ defmodule Pinchflat.Media.MediaQuery do
     )
   end
 
+  # The home page splits non-downloaded media into three buckets so a user can tell apart
+  # "queued and waiting", "failed but will retry", and "permanently failed". error_type is set
+  # by MediaDownloadWorker.action_on_error/2: "transient" (will retry) or "permanent" (also sets
+  # prevent_download).
+
+  # Staged & waiting: pending, and has NOT errored. Tightens the plain `pending/0` used by the
+  # Pending tab so retrying items move to their own tab rather than lingering under Pending.
+  def staged_pending do
+    dynamic([mi], ^pending() and is_nil(mi.error_type))
+  end
+
+  # Failing but will retry: a transient error, not yet downloaded, not download-prevented.
+  def retrying do
+    dynamic(
+      [mi],
+      mi.error_type == "transient" and
+        not (^downloaded()) and
+        not (^download_prevented())
+    )
+  end
+
+  # Permanently failed. Keyed on error_type == "permanent" ONLY — deliberately NOT on
+  # prevent_download, because prevent_download is also set by the pre-download user script and by
+  # manual user action, which are not failures and must not show up here. (If a
+  # download_prevented_reason column is added later, revisit to optionally fold in
+  # error-reason-prevented items.)
+  def failed do
+    dynamic([mi], mi.error_type == "permanent")
+  end
+
   def upgradeable do
     dynamic(
       [mi, source],
