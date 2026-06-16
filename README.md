@@ -1,7 +1,7 @@
 > **This is a personal fork of [kieraneglin/pinchflat](https://github.com/kieraneglin/pinchflat).** The upstream project entered a development pause in September 2025. This fork continues active development with a focus on backend stability and operational improvements. See the [Fork Changes](#fork-changes) section for details.
 
-[![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
-[![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchflat?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchflat/releases)
+[![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchfork/blob/master/LICENSE)
+[![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchfork?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchfork/releases)
 
 # Pinchfork
 
@@ -133,7 +133,7 @@ services:
 
   pinchflat:                                        # the app
     container_name: pinchflat
-    image: ghcr.io/o51r15/pinchflat:latest
+    image: ghcr.io/o51r15/pinchfork:latest
     restart: unless-stopped
     depends_on:
       pinchflat-db:
@@ -296,9 +296,11 @@ Each download stages into its own per-item subdirectory under `/downloads-stagin
 
 ---
 
-## Upstream documentation
+## Documentation
 
-For documentation on features, media profiles, sources, Jellyfin/Plex setup, cookies, SponsorBlock, and other functionality, refer to the [upstream wiki](https://github.com/kieraneglin/pinchflat/wiki). All feature documentation remains accurate for this fork — only the installation and database backend differ.
+For Pinchfork-specific documentation, see the [Pinchfork wiki](https://github.com/o51r15/pinchfork/wiki).
+
+For documentation on upstream features, media profiles, sources, Jellyfin/Plex setup, cookies, SponsorBlock, and other base functionality, refer to the [upstream Pinchflat wiki](https://github.com/kieraneglin/pinchflat/wiki). All base feature documentation remains accurate for this fork — only the installation, database backend, and fork-specific features differ.
 
 ---
 

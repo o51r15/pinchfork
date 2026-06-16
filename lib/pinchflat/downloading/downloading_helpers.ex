@@ -166,14 +166,45 @@ defmodule Pinchflat.Downloading.DownloadingHelpers do
         prevent_download: false
       })
 
-    # Remove any existing tasks/jobs (any state) so the unique constraint won't reject the new
-    # job and no stale job lingers. Cancels attached Oban jobs as part of deletion.
-    Tasks.delete_tasks_for(cleared_media_item, "MediaDownloadWorker")
+    # Remove any existing tasks/jobs for this item so the unique constraint won't reject the
+    # new job and no stale job lingers. We bypass Tasks.delete_tasks_for here because it routes
+    # through list_tasks_for which has the Oban enum-cast issue (oban_jobs.state is a Postgres
+    # enum, not text — without casting, state comparisons silently match nothing and stale jobs
+    # are left behind). Instead we cancel/delete jobs directly with the cast, then remove tasks.
+    job_ids =
+      from(t in Pinchflat.Tasks.Task,
+        join: j in assoc(t, :job),
+        where: t.media_item_id == ^cleared_media_item.id,
+        where: like(j.worker, "%MediaDownloadWorker"),
+        select: j.id
+      )
+      |> Repo.all()
+
+    if job_ids != [] do
+      from(j in Oban.Job, where: j.id in ^job_ids)
+      |> Repo.update_all(set: [state: "cancelled"])
+    end
+
+    from(t in Pinchflat.Tasks.Task, where: t.media_item_id == ^cleared_media_item.id)
+    |> Repo.delete_all()
 
     cleared_media_item = Repo.preload(cleared_media_item, :source, force: true)
 
     Logger.info("Force-retrying media item ##{cleared_media_item.id} (#{cleared_media_item.media_id})")
 
-    MediaDownloadWorker.kickoff_with_task(cleared_media_item)
+    case MediaDownloadWorker.kickoff_with_task(cleared_media_item) do
+      {:ok, task} ->
+        # Force the new job to run immediately — kickoff_with_task may schedule it with a
+        # future scheduled_at inherited from Oban's backoff logic. Explicitly set it to
+        # available + now() so it appears in Active Tasks on the next poll rather than
+        # sitting in retryable state waiting for a future time.
+        from(j in Oban.Job, where: j.id == ^task.job_id)
+        |> Repo.update_all(set: [state: "available", scheduled_at: DateTime.utc_now()])
+
+        {:ok, task}
+
+      error ->
+        error
+    end
   end
 end

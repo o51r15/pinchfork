@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
     <.live_title>
-      {assigns[:page_title] || "Pinchflat"}
+      {assigns[:page_title] || "Pinchfork"}
     </.live_title>
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <link rel="icon" type="image/x-icon" href={~p"/favicon.ico?cachebust=2024-03-20"} />
@@ -23,7 +23,6 @@
   >
     {@inner_content}
 
-    <.donate_modal conn={@conn} />
     <template x-if="!proEnabled && !onboarding">
       <.upgrade_modal conn={@conn} />
     </template>

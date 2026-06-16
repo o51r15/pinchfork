@@ -44,7 +44,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           # Fork publishes only to this repo's GitHub Container Registry namespace
-          # (ghcr.io/o51r15/pinchflat). The upstream docker.io/keglin/pinchflat image
+          # (ghcr.io/o51r15/pinchfork). The upstream docker.io/keglin/pinchflat image
           # and its Docker Hub login step were removed — this fork has no access to
           # that namespace and no DOCKERHUB_* secrets are configured.
           images: |
