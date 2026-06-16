@@ -5,7 +5,6 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   require Logger
 
   alias Pinchflat.Repo
-  alias Pinchflat.Tasks
   alias Pinchflat.Utils.NumberUtils
   alias Pinchflat.Downloading.DownloadingHelpers
   alias PinchflatWeb.CustomComponents.TextComponents
