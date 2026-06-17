@@ -13,6 +13,13 @@ defmodule Pinchflat.YtDlp.CommandRunner do
 
   @behaviour YtDlpCommandRunner
 
+  # Directory the bgutil POT provider plugin is installed into. This is baked into the
+  # image at build time (see docker/selfhosted.Dockerfile) and lives OUTSIDE the user's
+  # /config mount so a fresh install always has it. The flag is only passed to yt-dlp
+  # when this directory actually exists and contains a plugin (see plugin_dir_options/0),
+  # so the app fails OPEN: a missing/empty plugin dir never breaks yt-dlp invocations.
+  @plugin_dir "/etc/yt-dlp/plugins"
+
   @doc """
   Runs a yt-dlp command and returns the string output. Saves the output to
   a file and then returns its contents because yt-dlp will return warnings
@@ -114,19 +121,38 @@ defmodule Pinchflat.YtDlp.CommandRunner do
     [
       :windows_filenames,
       :quiet,
-      # Load the bgutil POT provider plugin from the mounted plugins directory.
-      # The plugin is the EXTRACTED contents of bgutil-ytdlp-pot-provider.zip, laid out as:
-      #   /config/yt-dlp-plugins/bgutil/yt_dlp_plugins/extractor/*.py  (+ pyproject.toml)
-      # (bind-mounted from the host at /home/o51r15/docker/pinchfork/yt-dlp-plugins/).
-      # IMPORTANT: the zip must be EXTRACTED into the package dir, not dropped in as a zip —
-      # the verified-working structure requires the yt_dlp_plugins/extractor/ tree on disk.
-      # This must be in global_options so it applies to every yt-dlp invocation
-      # (indexing, downloading, version checks, etc.) — the plugin registers itself
-      # at startup and yt-dlp uses it whenever a PO Token is needed. The base_url that
-      # tells the plugin WHERE the provider is lives in DownloadOptionBuilder (downloads only).
-      plugin_dirs: "/config/yt-dlp-plugins",
       cache_dir: Path.join(Application.get_env(:pinchflat, :tmpfile_directory), "yt-dlp-cache")
-    ]
+    ] ++ plugin_dir_options()
+  end
+
+  # Adds `--plugin-dirs <@plugin_dir>` ONLY when the directory exists and is non-empty.
+  #
+  # Background: the bgutil POT provider plugin is the EXTRACTED contents of
+  # bgutil-ytdlp-pot-provider.zip, laid out as:
+  #   /etc/yt-dlp/plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins/extractor/*.py  (+ pyproject.toml)
+  # It is baked into the image at build time (docker/selfhosted.Dockerfile), so it is present
+  # on every pull. The companion bgutil HTTP *sidecar* is what actually mints tokens; the base_url
+  # that points the plugin at the sidecar lives in DownloadOptionBuilder (downloads only). With the
+  # sidecar running, PO tokens flow automatically; without it, the plugin loads but stays idle.
+  #
+  # Why conditional: yt-dlp ABORTS with "Invalid plugin directory" if `--plugin-dirs` points at a
+  # path that does not exist. Passing it unconditionally made every yt-dlp call (indexing,
+  # downloading, version checks) fail on any install where the dir was absent. Gating on
+  # exists-and-non-empty makes the app fail OPEN — yt-dlp works fine without the flag, and the
+  # plugin is picked up automatically once present.
+  defp plugin_dir_options do
+    if plugin_dir_present?() do
+      [plugin_dirs: @plugin_dir]
+    else
+      []
+    end
+  end
+
+  defp plugin_dir_present? do
+    case File.ls(@plugin_dir) do
+      {:ok, [_ | _]} -> true
+      _ -> false
+    end
   end
 
   defp cookie_file_options(addl_opts) do

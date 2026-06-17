@@ -11,6 +11,8 @@
 
 *a fork of [Pinchflat](https://github.com/kieraneglin/pinchflat)*
 
+> **A note on naming:** **Pinchfork** is this project — the active PostgreSQL fork. **Pinchflat** is the upstream project it was forked from. Throughout this document, "Pinchfork" refers to this fork and "Pinchflat" refers to the original upstream build. A few low-level identifiers (the Docker image's database container, user, and connection string) still use the `pinchflat` name because they are inherited from the upstream-derived image and renaming them would break existing deployments; these are called out where they appear.
+
 ## Table of contents
 
 - [Fork Changes](#fork-changes)
@@ -21,7 +23,7 @@
   - [Docker Compose (with Postgres)](#docker-compose-with-postgres)
   - [Environment Variables](#environment-variables)
   - [Reverse Proxies](#reverse-proxies)
-- [Upstream documentation](#upstream-documentation)
+- [Documentation](#documentation)
 - [Configuration Differences from Upstream](#configuration-differences-from-upstream)
 - [Contributors](#contributors)
 - [License](#license)
@@ -34,7 +36,7 @@ This fork diverges from upstream in the following ways:
 
 ### PostgreSQL backend (replaces SQLite)
 
-The original Pinchflat uses SQLite as its database. This fork replaces it with PostgreSQL. The motivation:
+The original Pinchflat uses SQLite as its database. Pinchfork replaces it with PostgreSQL. The motivation:
 
 - SQLite + Oban (the background job library) is a structural mismatch. Oban was built for Postgres and the SQLite adapter causes write contention under load, query timeouts, and crash loops as library size grows.
 - Postgres handles concurrent job queues (indexing, downloading, metadata, file sync) correctly and without file locking issues.
@@ -65,7 +67,8 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 - [x] **v0.3.0** — Per-item staging cleanup (each download isolated under a per-id staging dir, orphans auto-cleaned on failure/restart/success) and a home-page failure-state split: the Pending tab is now **Pending / Retry / Failed**, with a live retry countdown and Retry Now / Force Retry actions.
 - [x] **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart. Automatically retries them after 30 minutes. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#860](https://github.com/kieraneglin/pinchflat/pull/860))*
 - [x] **yt-dlp version management** — `YT_DLP_VERSION` environment variable to control update behavior: `stable` (default), `nightly`, `master`, `pinned`/`none` to disable, or a specific version string. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#858](https://github.com/kieraneglin/pinchflat/pull/858))*
-- [ ] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
+- [x] **Download prevention reason tracking** — `download_prevented_reason` field that distinguishes manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items. Surfaced on the media-item page.
+- [x] **v0.3.1** — PO Token plugin baked into the image (one-and-done sidecar setup, no manual plugin mount) and a fail-open fix so a missing or empty plugin directory can no longer break yt-dlp on a fresh install. Also locks permanent-failure classification with regression tests.
 - [ ] **Queue diagnostics page** — New Config menu item with Oban queue health stats, stuck job detection, and bulk reset/cancel actions. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#859](https://github.com/kieraneglin/pinchflat/pull/859))*
 - [x] **YouTube API key tester** — One-click API key validation from the Settings page. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#857](https://github.com/kieraneglin/pinchflat/pull/857))*
 
@@ -73,9 +76,9 @@ All application features, the web UI, yt-dlp integration, media profiles, source
 
 ## What it does
 
-Pinchflat is a self-hosted app for downloading YouTube content built using [yt-dlp](https://github.com/yt-dlp/yt-dlp). It's designed to be lightweight, self-contained, and easy to use. You set up rules for how to download content from YouTube channels or playlists and it'll do the rest, periodically checking for new content. It's perfect for people who want to download content for use with a media center app (Plex, Jellyfin, Kodi) or for those who want to archive media.
+Pinchfork is a self-hosted app for downloading YouTube content built using [yt-dlp](https://github.com/yt-dlp/yt-dlp). It's designed to be lightweight, self-contained, and easy to use. You set up rules for how to download content from YouTube channels or playlists and it'll do the rest, periodically checking for new content. It's perfect for people who want to download content for use with a media center app (Plex, Jellyfin, Kodi) or for those who want to archive media.
 
-While you can download individual videos, Pinchflat is best suited for downloading content from channels or playlists. It's also not meant for consuming content in-app — Pinchflat downloads content to disk where you can then watch it with a media center app or VLC.
+While you can download individual videos, Pinchfork is best suited for downloading content from channels or playlists. It's also not meant for consuming content in-app — Pinchfork downloads content to disk where you can then watch it with a media center app or VLC.
 
 ---
 
@@ -104,7 +107,7 @@ While you can download individual videos, Pinchflat is best suited for downloadi
 
 ### Docker Compose (with Postgres)
 
-This fork is distributed as a prebuilt image: `ghcr.io/o51r15/pinchflat:latest` (or pin a version like `:v0.3.0`). It requires a Postgres container, and a PO Token sidecar is strongly recommended (see [SABR bypass / PO Token provider](#sabr-bypass--po-token-provider)).
+Pinchfork is distributed as a prebuilt image: `ghcr.io/o51r15/pinchfork:latest` (or pin a version like `:v0.3.1`). It requires a Postgres container, and a PO Token sidecar is strongly recommended (see [SABR bypass / PO Token provider](#sabr-bypass--po-token-provider)).
 
 **Step 1 — Create your compose file.** A complete, annotated sample with all three containers is in the repo at [`docker-compose.sample.yml`](docker-compose.sample.yml). A minimal version:
 
@@ -115,34 +118,36 @@ services:
     image: brainicism/bgutil-ytdlp-pot-provider:1.3.1
     restart: unless-stopped
 
-  pinchflat-db:                                     # Postgres (required)
-    container_name: pinchflat-db
+  pinchfork-db:                                     # Postgres (required)
+    container_name: pinchfork-db
     image: postgres:16-alpine
     restart: unless-stopped
     environment:
-      POSTGRES_USER: pinchflat
-      POSTGRES_PASSWORD: your_password_here         # must match DATABASE_URL below
-      POSTGRES_DB: pinchflat
+      POSTGRES_USER: pinchflat                       # inherited from upstream image — do not rename
+      POSTGRES_PASSWORD: your_password_here          # must match DATABASE_URL below
+      POSTGRES_DB: pinchflat                         # inherited from upstream image — do not rename
     volumes:
-      - pinchflat_pgdata:/var/lib/postgresql/data
+      - pinchfork_pgdata:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pinchflat"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  pinchflat:                                        # the app
-    container_name: pinchflat
+  pinchfork:                                        # the app
+    container_name: pinchfork
     image: ghcr.io/o51r15/pinchfork:latest
     restart: unless-stopped
     depends_on:
-      pinchflat-db:
+      pinchfork-db:
         condition: service_healthy
       bgutil-provider:
         condition: service_started
     environment:
       - TZ=America/New_York
-      - DATABASE_URL=ecto://pinchflat:your_password_here@pinchflat-db/pinchflat
+      # DATABASE_URL keeps the pinchflat user/db names (inherited from the upstream image);
+      # only the host segment matches the db service name above.
+      - DATABASE_URL=ecto://pinchflat:your_password_here@pinchfork-db/pinchflat
       - POOL_SIZE=10
       # Optional — only if /downloads is a NETWORK mount (SMB/NFS). Stages all yt-dlp
       # work on a local disk and moves finished files over in one operation. Requires
@@ -158,7 +163,7 @@ services:
       # - /path/to/local/staging:/downloads-staging
 
 volumes:
-  pinchflat_pgdata:
+  pinchfork_pgdata:
 ```
 
 **Step 2 — Start it:**
@@ -193,13 +198,13 @@ Migrations run automatically at startup. The app will be available at `http://yo
 
 ### Reverse Proxies
 
-Pinchflat makes heavy use of websockets for real-time updates. Ensure your reverse proxy is configured to support websockets.
+Pinchfork makes heavy use of websockets for real-time updates. Ensure your reverse proxy is configured to support websockets.
 
 ---
 
 ## Configuration Differences from Upstream
 
-This fork introduces configuration options and behaviors that differ from or extend the upstream Pinchflat documentation. If you're migrating from upstream or referencing the upstream wiki, note the following.
+Pinchfork introduces configuration options and behaviors that differ from or extend the upstream Pinchflat documentation. If you're migrating from upstream or referencing the upstream wiki, note the following.
 
 ### Environment Variables (additions)
 
@@ -219,7 +224,7 @@ This fork introduces configuration options and behaviors that differ from or ext
 
 ### Oban job queue behavior
 
-This fork uses the `Oban.Engines.Basic` engine (Postgres native) instead of `Oban.Engines.Lite` (SQLite-only). This resolves write contention and crash loops that could occur on the upstream under load.
+Pinchfork uses the `Oban.Engines.Basic` engine (Postgres native) instead of `Oban.Engines.Lite` (SQLite-only). This resolves write contention and crash loops that could occur on the upstream under load.
 
 The `Oban.Plugins.Lifeline` plugin is enabled with a 30-minute rescue window. Any job that gets stuck in `executing` state after a crash or container restart will automatically be moved back to `retryable` and re-queued. Upstream does not include this plugin.
 
@@ -234,29 +239,30 @@ Unlisted and private videos are always skipped regardless of these settings.
 
 ### Media item error tracking (additions)
 
-Two new fields on media items not present in upstream:
+Three new fields on media items not present in upstream:
 
 - **`availability`** — captured from yt-dlp at index time. Values: `public`, `unlisted`, `subscriber_only`, `premium_only`, `needs_auth`, `private`.
 - **`error_type`** — set during download failures. Values: `transient` (will retry), `permanent` (sets `prevent_download: true`, stops retrying).
+- **`download_prevented_reason`** — records *why* a download was prevented: `permanent_error`, `manual`, `user_script`, or a policy reason (`policy_public` / `policy_members` / `policy_other`). Surfaced on the media-item page so a prevented item explains itself.
 
 Permanent failures include: video unavailable, removed, private, members-only, age-restricted, geo-blocked, and premium-only errors.
 
 ### SABR bypass / PO Token provider
 
-YouTube's SABR streaming protocol can produce corrupt downloads on the default web client — videos that fail with `Postprocessing: Error opening input files: Invalid data found when processing input` even though indexing succeeds. This fork mitigates that in two ways.
+YouTube's SABR streaming protocol can produce corrupt downloads on the default web client — videos that fail with `Postprocessing: Error opening input files: Invalid data found when processing input` even though indexing succeeds. Pinchfork mitigates that in two ways.
 
 **Video Client override (per source).** Under **Source → Edit → Downloading Options** there is a **Video Client** dropdown that selects which yt-dlp player client(s) to use for that source. The options are grouped into cookie-compatible and cookie-incompatible clients. Choosing a SABR-bypassing client routes downloads around the corrupting code path.
 
-> **Cookies and SABR bypass are mutually exclusive.** The SABR-bypassing clients refuse cookies, and the cookie-carrying clients are SABR-affected. The fork enforces this in code: selecting a cookie-incompatible client disables cookies for that source, and incoherent combinations are blocked at save time with an explanatory error. A source that needs cookies (members-only content) cannot also use a cookie-incompatible bypass client.
+> **Cookies and SABR bypass are mutually exclusive.** The SABR-bypassing clients refuse cookies, and the cookie-carrying clients are SABR-affected. Pinchfork enforces this in code: selecting a cookie-incompatible client disables cookies for that source, and incoherent combinations are blocked at save time with an explanatory error. A source that needs cookies (members-only content) cannot also use a cookie-incompatible bypass client.
 
-**PO Token (POT) provider sidecar.** Some clients require a GVS PO Token to fetch the good video formats. This fork supports the [bgutil POT provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) running as a sidecar container. The matching yt-dlp plugin is mounted from `/config/yt-dlp-plugins` so it survives yt-dlp's self-updates, and the app passes the provider's base URL to yt-dlp automatically.
+**PO Token (POT) provider sidecar.** Some clients require a GVS PO Token to fetch the good video formats. Pinchfork supports the [bgutil POT provider](https://github.com/Brainicism/bgutil-ytdlp-pot-provider) running as a sidecar container. **The matching yt-dlp plugin is baked into the Pinchfork image** (under `/etc/yt-dlp/plugins/`), so there is nothing to mount or extract — add the sidecar service and PO tokens work automatically. If the sidecar is absent, the plugin simply stays idle and the app is unaffected.
 
-To enable it, add the sidecar to your compose file and ensure the plugin directory is mounted:
+To enable it, add the sidecar to your compose file — that is all that is required:
 
 ```yaml
 services:
   bgutil-provider:
-    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1   # pin to match the mounted plugin version
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1   # baked-in plugin matches this version
     container_name: bgutil-provider
     restart: unless-stopped
 
@@ -268,7 +274,7 @@ services:
     # "youtubepot-bgutilhttp:base_url=http://bgutil-provider:4416" automatically
 ```
 
-> **Pin the sidecar image and the mounted plugin to the same version.** A version mismatch between the provider and the plugin is a known failure mode. The plugin lives under the config volume at `/config/yt-dlp-plugins/` so it persists across yt-dlp binary self-updates (a pip-installed plugin would not).
+> **The plugin is pinned to a specific bgutil version in the image** (built from `bgutil-ytdlp-pot-provider` 1.3.1). Run the matching sidecar tag (`brainicism/bgutil-ytdlp-pot-provider:1.3.1`) — a version mismatch between the baked-in plugin and the sidecar is a known failure mode. Because the plugin ships inside the image rather than under the config volume, it is rebuilt with each release and survives yt-dlp's binary self-updates automatically.
 
 ### Local Temp Staging
 
@@ -292,7 +298,7 @@ The staging directory must be on a real local disk — not the network mount, an
 
 Each download stages into its own per-item subdirectory under `/downloads-staging`, keyed on the video's unique id. Failed or abandoned attempts have their staging files cleaned up automatically (before the next attempt, on failure, and after success), so stale intermediates can't accumulate or interfere with a later retry.
 
-> **How it works:** yt-dlp ignores `--paths` when `--output` is an absolute path. To make staging take effect, this fork passes the base directory as `--paths home:<dir>`, a per-item staging directory as `--paths temp:<dir>/<video-id>`, and rewrites the output template to be relative — but only when `LOCALTEMP=true`. With the variable unset, download options are completely unchanged.
+> **How it works:** yt-dlp ignores `--paths` when `--output` is an absolute path. To make staging take effect, Pinchfork passes the base directory as `--paths home:<dir>`, a per-item staging directory as `--paths temp:<dir>/<video-id>`, and rewrites the output template to be relative — but only when `LOCALTEMP=true`. With the variable unset, download options are completely unchanged.
 
 ---
 

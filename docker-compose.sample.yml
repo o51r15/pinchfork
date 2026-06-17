@@ -1,0 +1,74 @@
+# docker-compose.sample.yml — annotated end-user deployment for Pinchfork
+# (the active PostgreSQL fork of Pinchflat: https://github.com/o51r15/pinchfork).
+#
+# Three containers:
+#   - pinchfork          the app
+#   - pinchfork-db       PostgreSQL (required)
+#   - bgutil-provider    PO Token sidecar (recommended; enables SABR-bypass downloads)
+#
+# Naming note: the app, db container, and volume use the "pinchfork" name. A few
+# low-level identifiers (POSTGRES_USER, POSTGRES_DB, and the user/db segments of
+# DATABASE_URL) keep the "pinchflat" name because they are inherited from the
+# upstream-derived image — do NOT rename them or the app cannot connect.
+#
+# Copy this file, change the password in the two marked spots, set your host paths,
+# then: docker compose -f docker-compose.yml up -d
+
+services:
+  bgutil-provider:                                  # PO Token sidecar (recommended)
+    container_name: bgutil-provider
+    image: brainicism/bgutil-ytdlp-pot-provider:1.3.1   # matches the plugin baked into the pinchfork image
+    restart: unless-stopped
+
+  pinchfork-db:                                     # PostgreSQL (required)
+    container_name: pinchfork-db
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pinchflat                       # inherited from upstream image — do not rename
+      POSTGRES_PASSWORD: changeme                    # <-- CHANGE THIS (must match DATABASE_URL below)
+      POSTGRES_DB: pinchflat                         # inherited from upstream image — do not rename
+    volumes:
+      - pinchfork_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pinchflat"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pinchfork:                                        # the app
+    container_name: pinchfork
+    image: ghcr.io/o51r15/pinchfork:latest          # or pin a version, e.g. :v0.3.1
+    restart: unless-stopped
+    depends_on:
+      pinchfork-db:
+        condition: service_healthy
+      bgutil-provider:
+        condition: service_started
+    environment:
+      - TZ=America/New_York                          # set your IANA timezone
+      # DATABASE_URL keeps the pinchflat user/db names (inherited from the upstream image);
+      # only the host segment matches the db service name above. Change the password to match
+      # POSTGRES_PASSWORD above.
+      - DATABASE_URL=ecto://pinchflat:changeme@pinchfork-db/pinchflat
+      - POOL_SIZE=10
+      # Optional — only if /downloads is a NETWORK mount (SMB/NFS). Stages all yt-dlp work on a
+      # local disk and moves finished files over in one operation. Requires the /downloads-staging
+      # volume below. See the Local Temp Staging section of the README.
+      # - LOCALTEMP=true
+      # Optional extras:
+      # - YT_DLP_WORKER_CONCURRENCY=2                # lower to 1 if you get IP-limited
+      # - YT_DLP_VERSION=stable                      # stable | nightly | master | none | 2025.12.08
+      # - BASIC_AUTH_USERNAME=admin                  # set both to enable basic auth
+      # - BASIC_AUTH_PASSWORD=secret
+    ports:
+      - "8945:8945"
+    volumes:
+      - /path/to/config:/config                      # app config + state
+      - /path/to/downloads:/downloads                # final media library
+      # Local staging target for LOCALTEMP above — MUST be a real LOCAL disk (not the network
+      # mount, not a container path). Uncomment together with LOCALTEMP.
+      # - /path/to/local/staging:/downloads-staging
+
+volumes:
+  pinchfork_pgdata:
