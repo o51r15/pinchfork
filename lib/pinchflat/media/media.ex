@@ -128,12 +128,20 @@ defmodule Pinchflat.Media do
 
   Unlike `create_media_item`, this will attempt an update if the media_item
   already exists. This is so that future indexing can pick up attributes that
-  we may not have asked for in the past (eg: uploaded_at)
+  we may not have asked for in the past (eg: uploaded_at).
+
+  Accepts an optional `extra_attrs` map that is merged in AFTER the struct conversion.
+  Use this to pass computed fields (e.g. prevent_download, download_prevented_reason)
+  that are not present on the YtDlp.Media struct but belong in the upsert so the
+  values are written in a single operation rather than insert-then-update.
 
   Returns {:ok, %MediaItem{}} | {:error, %Ecto.Changeset{}}
   """
-  def create_media_item_from_backend_attrs(source, media_attrs_struct) do
-    attrs = Map.merge(%{source_id: source.id}, Map.from_struct(media_attrs_struct))
+  def create_media_item_from_backend_attrs(source, media_attrs_struct, extra_attrs \\ %{}) do
+    attrs =
+      %{source_id: source.id}
+      |> Map.merge(Map.from_struct(media_attrs_struct))
+      |> Map.merge(extra_attrs)
 
     %MediaItem{}
     |> MediaItem.changeset(attrs)

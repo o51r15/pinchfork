@@ -105,7 +105,14 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
 
     result =
       Enum.map(media_attributes, fn media_attrs ->
-        case Media.create_media_item_from_backend_attrs(source, media_attrs) do
+        # Apply the same availability policy here as the file-follower path so both code paths
+        # produce consistent prevent_download / download_prevented_reason values. The source was
+        # already reloaded just above (post-indexing), so we do NOT reload per item here — that
+        # would fire one extra SELECT for every media item in a (potentially huge) collection.
+        {prevent, reason} = availability_policy(media_attrs.availability, source)
+        extra_attrs = %{prevent_download: prevent, download_prevented_reason: reason}
+
+        case Media.create_media_item_from_backend_attrs(source, media_attrs, extra_attrs) do
           {:ok, media_item} -> media_item
           {:error, changeset} -> changeset
         end
@@ -172,9 +179,18 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
     # and important settings like `download_media` may have changed.
     source = Repo.reload!(source)
 
-    case Media.create_media_item_from_backend_attrs(source, media_attrs) do
+    # Fold the availability policy and the prevented reason directly into the upsert attrs so
+    # the insert/update is a single write rather than insert-then-update. This also halves the
+    # number of FTS trigger fires during indexing (the tsvector trigger fires on every UPDATE).
+    {prevent, reason} = availability_policy(media_attrs.availability, source)
+
+    extra_attrs = %{
+      prevent_download: prevent,
+      download_prevented_reason: reason
+    }
+
+    case Media.create_media_item_from_backend_attrs(source, media_attrs, extra_attrs) do
       {:ok, %MediaItem{} = media_item} ->
-        media_item = apply_availability_policy(media_item, source)
         DownloadingHelpers.kickoff_download_if_pending(media_item)
 
       {:error, changeset} ->
@@ -182,42 +198,35 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
     end
   end
 
-  # Checks the media item's availability against the source's download policy
-  # and sets prevent_download accordingly. Runs on every insert/upsert so that
-  # availability changes on rescan are picked up automatically.
+  # Translates a media item's availability value into a {prevent_download, reason} tuple
+  # based on the source's download policy. Used to fold the policy into the initial upsert
+  # (single write) rather than applying it as a separate follow-up update.
+  #
+  # Returns {false, nil} when the item should be downloaded (no prevention needed).
+  # Returns {true, reason_string} when the item should be blocked.
   #
   # Availability mapping:
-  #   public             -> covered by download_public_videos
-  #   subscriber_only    -> covered by download_members_videos
-  #   premium_only       -> covered by download_members_videos
-  #   needs_auth         -> covered by download_members_videos
-  #   unlisted, private  -> always skipped
-  #   nil                -> treated as public (non-YouTube sources)
-  defp apply_availability_policy(%MediaItem{} = media_item, %Source{} = source) do
-    prevent =
-      case media_item.availability do
-        nil ->
-          # Non-YouTube or unknown — treat as public
-          not source.download_public_videos
+  #   nil                -> treated as public (non-YouTube / unknown sources)
+  #   "public"           -> covered by source.download_public_videos
+  #   subscriber_only /
+  #   premium_only /
+  #   needs_auth         -> covered by source.download_members_videos
+  #   unlisted, private,
+  #   or anything else   -> always blocked
+  defp availability_policy(availability, %Source{} = source) do
+    case availability do
+      nil ->
+        if source.download_public_videos, do: {false, nil}, else: {true, "policy_public"}
 
-        "public" ->
-          not source.download_public_videos
+      "public" ->
+        if source.download_public_videos, do: {false, nil}, else: {true, "policy_public"}
 
-        av when av in @members_availability ->
-          not source.download_members_videos
+      av when av in @members_availability ->
+        if source.download_members_videos, do: {false, nil}, else: {true, "policy_members"}
 
-        _other ->
-          # unlisted, private, or anything else — always skip
-          true
-      end
-
-    if prevent != media_item.prevent_download do
-      case Media.update_media_item(media_item, %{prevent_download: prevent}) do
-        {:ok, updated} -> updated
-        _ -> media_item
-      end
-    else
-      media_item
+      _other ->
+        # unlisted, private, or any unknown value — always skip
+        {true, "policy_other"}
     end
   end
 

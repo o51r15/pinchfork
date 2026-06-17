@@ -82,8 +82,14 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
     {:ok, media_item} =
       case run_user_script(:media_pre_download, media_item) do
-        {:ok, _, exit_code} when exit_code != 0 -> Media.update_media_item(media_item, %{prevent_download: true})
-        _ -> {:ok, media_item}
+        {:ok, _, exit_code} when exit_code != 0 ->
+          Media.update_media_item(media_item, %{
+            prevent_download: true,
+            download_prevented_reason: "user_script"
+          })
+
+        _ ->
+          {:ok, media_item}
       end
 
     Repo.preload(media_item, :source)
@@ -175,7 +181,8 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
         Media.update_media_item(media_item, %{
           prevent_download: true,
           error_type: "permanent",
-          last_error: message_str
+          last_error: message_str,
+          download_prevented_reason: "permanent_error"
         })
 
         {:ok, :non_retry}

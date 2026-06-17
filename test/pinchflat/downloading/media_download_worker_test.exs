@@ -432,4 +432,110 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
       perform_job(MediaDownloadWorker, %{id: media_item.id})
     end
   end
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # GROUP 1b: Error string classification lock tests
+  #
+  # These tests lock the EXACT strings that drive permanent-failure and PO-token
+  # classification so that a future yt-dlp wording change causes a test failure
+  # instead of silently misclassifying in production.
+  #
+  # The recoverable_cookie_errors list ("Sign in to confirm", "This video is
+  # available to this channel's members") is covered by
+  # MediaDownloaderTest "when testing cookie retries" — not duplicated here.
+  # ──────────────────────────────────────────────────────────────────────────
+
+  describe "action_on_error/2 — permanent failure string classification" do
+    test "each permanent failure string sets error_type permanent and prevents re-download",
+         %{media_item: media_item} do
+      permanent_strings = [
+        # Deleted / removed
+        "Video unavailable",
+        "This video has been removed",
+        "This video is not available",
+        # Auth / age-gated
+        "Sign in to confirm",
+        "age-restricted",
+        "requires payment",
+        # Members / premium
+        "This video is available to this channel's members",
+        "members-only",
+        "premium",
+        # Geo-blocked
+        "not available in your country",
+        "not available in your region",
+        # Private
+        "Private video"
+      ]
+
+      for string <- permanent_strings do
+        # Reset the item state before each string so assertions are clean.
+        {:ok, item} =
+          Media.update_media_item(media_item, %{
+            prevent_download: false,
+            error_type: nil,
+            last_error: nil
+          })
+
+        stub(YtDlpRunnerMock, :run, fn
+          _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+          # Wrap the string so we confirm substring matching works
+          _url, :download, _opts, _ot, _addl -> {:error, "context: #{string} (detail)", 1}
+        end)
+
+        # The permanent branch returns {:ok, :non_retry}, which Oban treats as success. We assert
+        # on the PERSISTED effects (error_type + prevent_download) rather than the raw worker
+        # return — that mirrors the existing permanent-failure tests in this file, and
+        # prevent_download == true is itself proof the non-retry branch ran.
+        perform_job(MediaDownloadWorker, %{id: item.id, quality_upgrade?: true})
+
+        item = Repo.reload(item)
+
+        assert item.error_type == "permanent",
+               "Expected error_type == \"permanent\" for string: #{inspect(string)}"
+
+        assert item.prevent_download == true,
+               "Expected prevent_download == true for string: #{inspect(string)}"
+      end
+    end
+  end
+
+  describe "action_on_error/2 — PO token string classification" do
+    test "each PO token error string classifies as transient and does not prevent re-download",
+         %{media_item: media_item} do
+      po_token_strings = [
+        "PO Token",
+        "po_token",
+        "youtubepot",
+        "requires a GVS"
+      ]
+
+      for string <- po_token_strings do
+        {:ok, item} =
+          Media.update_media_item(media_item, %{
+            prevent_download: false,
+            error_type: nil,
+            last_error: nil
+          })
+
+        stub(YtDlpRunnerMock, :run, fn
+          _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+          _url, :download, _opts, _ot, _addl -> {:error, "context: #{string} (detail)", 1}
+        end)
+
+        # perform_job returns {:error, :download_failed} when action_on_error yields {:error, :download_failed}
+        assert {:error, :download_failed} ==
+                 perform_job(MediaDownloadWorker, %{id: item.id, quality_upgrade?: true}),
+               "Expected {:error, :download_failed} (retryable) for PO token string: #{inspect(string)}"
+
+        item = Repo.reload(item)
+
+        assert item.error_type == "transient",
+               "Expected error_type == \"transient\" for string: #{inspect(string)}"
+
+        assert item.prevent_download == false,
+               "Expected prevent_download == false for string: #{inspect(string)}"
+      end
+    end
+  end
 end

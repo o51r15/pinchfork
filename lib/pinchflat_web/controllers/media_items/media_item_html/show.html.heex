@@ -25,6 +25,14 @@
 
       <:tab title="Media" id="media">
         <div class="flex flex-col gap-10 text-white">
+          <section :if={@media_item.prevent_download} class="mt-6">
+            <div class="flex items-center gap-1 mb-2">
+              <.icon name="hero-no-symbol-solid" class="text-yellow-500" />
+              <h3 class="font-bold text-xl">Download Prevented</h3>
+            </div>
+            <span>{format_prevention_reason(@media_item.download_prevented_reason)}</span>
+          </section>
+
           <section :if={@media_item.last_error} class="mt-6">
             <div class="flex items-center gap-1 mb-2">
               <.icon name="hero-exclamation-circle-solid" class="text-red-500" />

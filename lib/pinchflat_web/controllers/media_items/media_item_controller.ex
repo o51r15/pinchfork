@@ -41,7 +41,18 @@ defmodule PinchflatWeb.MediaItems.MediaItemController do
   def delete(conn, %{"id" => id} = params) do
     prevent_download = Map.get(params, "prevent_download", false)
     media_item = Media.get_media_item!(id)
-    {:ok, _} = Media.delete_media_files(media_item, %{prevent_download: prevent_download})
+
+    # When prevent_download is explicitly requested by the user (via the UI), record that
+    # the reason is a manual action so "blocked by user" is distinguishable from
+    # "permanently failed" or "blocked by availability policy".
+    addl_attrs =
+      if prevent_download do
+        %{prevent_download: true, download_prevented_reason: "manual"}
+      else
+        %{prevent_download: false}
+      end
+
+    {:ok, _} = Media.delete_media_files(media_item, addl_attrs)
 
     conn
     |> put_flash(:info, "Files deleted successfully.")
