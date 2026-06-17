@@ -16,13 +16,25 @@ config :pinchflat, Oban, testing: :manual
 # The MIX_TEST_PARTITION environment variable can be used
 # to provide built-in test partitioning in CI environment.
 # Run `mix help test` for more information.
-config :pinchflat, Pinchflat.Repo,
-  username: "postgres",
-  password: "postgres",
-  hostname: "localhost",
-  database: "pinchflat_test#{System.get_env("MIX_TEST_PARTITION")}",
-  pool: Ecto.Adapters.SQL.Sandbox,
-  pool_size: System.schedulers_online() * 2
+#
+# Fork note: in CI we run against a Postgres container. DATABASE_URL overrides the
+# localhost defaults so the test suite can find the CI database service without
+# modifying the standard local dev setup.
+if database_url = System.get_env("DATABASE_URL") do
+  config :pinchflat, Pinchflat.Repo,
+    url: database_url,
+    database: "pinchflat_test#{System.get_env("MIX_TEST_PARTITION")}",
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+else
+  config :pinchflat, Pinchflat.Repo,
+    username: "postgres",
+    password: "postgres",
+    hostname: "localhost",
+    database: "pinchflat_test#{System.get_env("MIX_TEST_PARTITION")}",
+    pool: Ecto.Adapters.SQL.Sandbox,
+    pool_size: System.schedulers_online() * 2
+end
 
 # We don't run a server during test. If one is required,
 # you can enable the server option below.

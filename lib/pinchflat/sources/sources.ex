@@ -41,7 +41,11 @@ defmodule Pinchflat.Sources do
     case source.cookie_behaviour do
       :disabled -> false
       :all_operations -> true
-      :when_needed -> operation in [:indexing, :error_recovery]
+      # :metadata is included so that thumbnail fetches (which run as a separate yt-dlp call
+      # after the main download) also carry cookies when needed. Without it, age-restricted
+      # videos fail on the thumbnail step even though the main download succeeded — the
+      # thumbnail fetch hits the age gate because it has no cookies attached.
+      :when_needed -> operation in [:indexing, :error_recovery, :metadata]
     end
   end
 
@@ -282,11 +286,6 @@ defmodule Pinchflat.Sources do
     current_changes = changeset.changes
     applied_changes = Ecto.Changeset.apply_changes(changeset)
 
-    # We need both current_changes and applied_changes to determine
-    # the course of action to take. For example, we only care if a source is supposed
-    # to be `enabled` or not - we don't care if that information comes from the
-    # current changes or if that's how it already was in the database.
-    # Rephrased, we're essentially using it in place of `get_field/2`
     case {current_changes, applied_changes} do
       {%{download_media: true}, %{enabled: true}} ->
         DownloadingHelpers.enqueue_pending_download_tasks(source)
@@ -309,7 +308,6 @@ defmodule Pinchflat.Sources do
 
   defp maybe_run_indexing_task(changeset, source) do
     case changeset.data do
-      # If the changeset is new (not persisted), attempt indexing no matter what
       %{__meta__: %{state: :built}} ->
         SlowIndexingHelpers.kickoff_indexing_task(source)
 
@@ -317,8 +315,6 @@ defmodule Pinchflat.Sources do
           FastIndexingHelpers.kickoff_indexing_task(source)
         end
 
-      # If the record has been persisted, only run indexing if the
-      # indexing frequency has been changed and is now greater than 0
       %{__meta__: %{state: :loaded}} ->
         maybe_update_slow_indexing_task(changeset, source)
         maybe_update_fast_indexing_task(changeset, source)
@@ -327,12 +323,9 @@ defmodule Pinchflat.Sources do
 
   defp maybe_run_metadata_storage_task(changeset, source) do
     case {changeset.data, changeset.changes} do
-      # If the changeset is new (not persisted), fetch metadata no matter what
       {%{__meta__: %{state: :built}}, _} ->
         SourceMetadataStorageWorker.kickoff_with_task(source)
 
-      # If the record has been persisted, only fetch metadata if the
-      # original_url has changed
       {_, %{original_url: _}} ->
         SourceMetadataStorageWorker.kickoff_with_task(source)
 
@@ -342,7 +335,6 @@ defmodule Pinchflat.Sources do
   end
 
   defp maybe_update_slow_indexing_task(changeset, source) do
-    # See comment in `maybe_handle_media_tasks` as to why we need these
     current_changes = changeset.changes
     applied_changes = Ecto.Changeset.apply_changes(changeset)
 
@@ -365,13 +357,9 @@ defmodule Pinchflat.Sources do
   end
 
   defp maybe_update_fast_indexing_task(changeset, source) do
-    # See comment in `maybe_handle_media_tasks` as to why we need these
     current_changes = changeset.changes
     applied_changes = Ecto.Changeset.apply_changes(changeset)
 
-    # This technically could be simplified since `maybe_update_slow_indexing_task`
-    # has some overlap re: deleting pending tasks, but I'm keeping it separate
-    # for clarity and explicitness.
     case {current_changes, applied_changes} do
       {%{fast_index: true}, %{enabled: true}} ->
         FastIndexingHelpers.kickoff_indexing_task(source)

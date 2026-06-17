@@ -137,14 +137,25 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   end
 
   def handle_event("force_retry", %{"id" => id}, %{assigns: assigns} = socket) do
-    case Repo.get(Pinchflat.Media.MediaItem, id) do
-      nil -> :noop
-      media_item -> DownloadingHelpers.force_retry(media_item)
-    end
+    result =
+      case Repo.get(Pinchflat.Media.MediaItem, id) do
+        nil -> :noop
+        media_item -> DownloadingHelpers.force_retry(media_item)
+      end
 
+    # Refresh the current tab's records regardless of outcome.
     new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+    socket = assign(socket, new_assigns)
 
-    {:noreply, assign(socket, new_assigns)}
+    # On success, switch to Active Tasks so the user can see the download start.
+    # The job is queued immediately; Oban picks it up on its next poll (~1s).
+    socket =
+      case result do
+        {:ok, _} -> push_event(socket, "switch-tab", %{tab: "active-tasks"})
+        _ -> socket
+      end
+
+    {:noreply, socket}
   end
 
   defp fetch_pagination_attributes(base_query, page) do
