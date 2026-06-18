@@ -88,13 +88,11 @@
 
     <div class="mt-4 mb-2">
       <label class="mb-1 block text-sm font-medium text-black dark:text-white">Content Availability</label>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">Select which videos to download. Unlisted and private videos are always skipped.</p>
+      <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
+        Select which videos to download. Unlisted and private videos are always skipped.
+      </p>
       <div class="flex flex-col gap-2">
-        <.input
-          field={f[:download_public_videos]}
-          type="checkbox"
-          label="Download public videos"
-        />
+        <.input field={f[:download_public_videos]} type="checkbox" label="Download public videos" />
         <.input
           field={f[:download_members_videos]}
           type="checkbox"
