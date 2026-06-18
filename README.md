@@ -104,6 +104,11 @@ For full technical details and migration guidance from upstream, see [Configurat
 - [x] Fail-open plugin dir fix — a missing or empty plugin directory can no longer break yt-dlp on a fresh install
 - [x] Download prevention reason tracking — `download_prevented_reason` field surfaced on media-item page
 
+**v0.3.2**
+- [x] Oban priority constraint fix — widened `priority_range` to `0–9` via Oban schema migration v12; fixes downloads silently never starting on fresh deployments (Pi4, Windows, clean server)
+- [x] Dockerfile and GitHub Actions workflow committed to repository — `ghcr.io/o51r15/pinchfork` now built and published automatically on tag push
+- [x] bgutil plugin path fix — corrected Dockerfile extraction path for `bgutil-ytdlp-pot-provider` v1.3.1 zip structure change
+
 **Upcoming**
 - [ ] SQLite→PostgreSQL migration tool — `mix pinchflat.migrate_sqlite` task to migrate an existing Pinchflat SQLite database to Pinchfork's PostgreSQL schema; adoption path for current Pinchflat users
 - [ ] UI filtering by availability and error type — filter media items by `availability` and `error_type` with shareable URL params
@@ -118,7 +123,7 @@ For full technical details and migration guidance from upstream, see [Configurat
 
 Pinchfork requires a PostgreSQL container. A PO Token sidecar is strongly recommended.
 
-**Image:** `ghcr.io/o51r15/pinchfork:latest` (or pin a version: `:v0.3.1`)
+**Image:** `ghcr.io/o51r15/pinchfork:latest` (or pin a version: `:v0.3.2`)
 
 A complete annotated compose file is in the repo at [`docker-compose.sample.yml`](docker-compose.sample.yml). Minimal setup:
 
