@@ -51,6 +51,14 @@ defmodule Pinchflat.FastIndexing.YoutubeRss do
     end
   end
 
+  @doc """
+  Not supported for RSS-based indexing. Satisfies the YoutubeBehaviour callback.
+
+  Returns {:error, binary()}
+  """
+  @impl YoutubeBehaviour
+  def test_api_key(_api_key), do: {:error, "API key testing is not supported for RSS indexing"}
+
   defp rss_url_for_source(source) do
     case source.collection_type do
       :channel -> "https://www.youtube.com/feeds/videos.xml?channel_id=#{source.collection_id}"
