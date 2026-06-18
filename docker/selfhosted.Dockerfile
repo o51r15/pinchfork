@@ -139,10 +139,13 @@ RUN mkdir -p /config /downloads /etc/elixir_tzdata_data /etc/yt-dlp/plugins && \
 # if they don't, the plugin sits idle and the app is unaffected. The app only passes
 # --plugin-dirs when this directory is non-empty (see CommandRunner.plugin_dir_options/0),
 # so this bake-in is what makes the dir non-empty on a stock image.
-# yt-dlp loads plugin zips natively; the zip is placed directly in the plugin dir.
-RUN curl -fL "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_PLUGIN_VERSION}/bgutil-ytdlp-pot-provider.zip" \
-      -o /etc/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip && \
-    chmod ugo+r /etc/yt-dlp/plugins/bgutil-ytdlp-pot-provider.zip
+# The release zip extracts to: bgutil-ytdlp-pot-provider/{pyproject.toml,yt_dlp_plugins/extractor/*.py}
+RUN curl -L "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_PLUGIN_VERSION}/bgutil-ytdlp-pot-provider.zip" \
+      -o /tmp/bgutil-plugin.zip && \
+    unzip -o /tmp/bgutil-plugin.zip -d /etc/yt-dlp/plugins && \
+    rm -f /tmp/bgutil-plugin.zip && \
+    test -d "/etc/yt-dlp/plugins/bgutil-ytdlp-pot-provider/yt_dlp_plugins/extractor" && \
+    chmod -R ugo+rX /etc/yt-dlp/plugins
 
 # set runner ENV
 ENV MIX_ENV="prod"
