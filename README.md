@@ -1,4 +1,4 @@
-> **This is a personal fork of [kieraneglin/pinchflat](https://github.com/kieraneglin/pinchflat).** The upstream project entered a development pause in September 2025. This fork continues active development with a focus on backend stability and operational improvements.
+> **This is a personal fork of [kieraneglin/pinchflat](https://github.com/kieraneglin/pinchflat).** The upstream project entered a development pause in September 2025. This fork continues active development with a focus on backend stability, operational improvements, and continued feature development.
 
 [![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchfork/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchfork?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchfork/releases)
@@ -29,13 +29,15 @@
 
 ## What it does
 
-Pinchfork is a self-hosted app for downloading YouTube content built using [yt-dlp](https://github.com/yt-dlp/yt-dlp). You set up rules for how to download content from YouTube channels or playlists and it checks periodically for new content. It's designed for use with a media center app (Plex, Jellyfin, Kodi) or for archiving media.
+Pinchfork is a self-hosted app for downloading YouTube content built using [yt-dlp](https://github.com/yt-dlp/yt-dlp). You set up rules for how to download content from YouTube channels or playlists and it checks periodically for new content. It's designed to handle large, growing libraries reliably over time — for use with a media center app (Plex, Jellyfin, Kodi) or for archiving media.
 
-While you can download individual videos, Pinchfork is best suited for downloading large amounts of content from channels or playlists. It's not meant for consuming content in-app — it downloads to disk for use with a media player.
+While you can download individual videos, Pinchfork is best suited for downloading content from channels or playlists at scale. It downloads to disk for use with a media player rather than streaming in-app.
 
 ---
 
 ## Features
+
+### Inherited from upstream
 
 - Powerful naming system so content is stored where and how you want it
 - Easy-to-use web interface with presets to get you started
@@ -51,9 +53,19 @@ While you can download individual videos, Pinchfork is best suited for downloadi
 - Cookie support for private playlists and members-only content
 - SponsorBlock integration
 - Custom `yt-dlp` options and lifecycle scripts
-- **PostgreSQL backend** for reliable concurrent job processing
-- **SABR bypass** and **PO Token support** for clean YouTube downloads
-- **Local temp staging** for network-mount download directories
+
+### Pinchfork additions
+
+- **PostgreSQL backend** — replaces SQLite; eliminates write contention and crash loops under load
+- **Redesigned home page** — Pending/Retry/Failed tab split with live retry countdown and Retry Now / Force Retry actions
+- **Content availability filtering** — per-source controls for public vs. members-only content; `availability` field captured at index time
+- **Error classification** — permanent vs. transient failure detection; permanently failed items stop consuming retry cycles automatically. `download_prevented_reason` field explains why a download was blocked
+- **SABR bypass and PO Token support** — per-source Video Client override to work around SABR-corrupted downloads; bgutil POT provider plugin baked into the image for one-and-done sidecar setup. See [SABR Bypass and PO Tokens](https://github.com/o51r15/pinchfork/wiki/SABR-Bypass-and-PO-Tokens)
+- **Local temp staging** — `LOCALTEMP` env var stages all yt-dlp intermediate work on a local disk and moves only finished files to the (possibly network-mounted) downloads directory. See [Local Temp Staging](https://github.com/o51r15/pinchfork/wiki/Local-Temp-Staging)
+- **yt-dlp version management** — `YT_DLP_VERSION` env var controls update behavior: pin to a specific version, disable updates, or track nightly/master builds
+- **Oban Lifeline** — automatically rescues jobs stuck in `executing` state after a crash or container restart
+- **YouTube API key tester** — one-click validation in Settings, no log-diving required
+- **Per-item staging cleanup** — failed or abandoned downloads clean up their own staging files automatically
 
 ---
 
@@ -61,7 +73,7 @@ While you can download individual videos, Pinchfork is best suited for downloadi
 
 The original Pinchflat uses SQLite with Oban's SQLite engine. Under load this causes write contention, query timeouts, and crash loops as the library grows. Pinchfork replaces the backend with PostgreSQL and Oban's native Postgres engine, which handles concurrent job queues correctly without file locking issues.
 
-Everything else — the UI, yt-dlp integration, media profiles, sources, media center support, SponsorBlock, RSS feeds, Apprise, and lifecycle scripts — is unchanged. This is purely a backend infrastructure change with several quality-of-life additions on top.
+The core feature set — media profiles, sources, media center support, SponsorBlock, RSS feeds, Apprise, and lifecycle scripts — carries over from upstream unchanged. On top of the backend port, Pinchfork adds several UI and operational improvements: content availability filtering per source, permanent vs. transient error classification, SABR bypass and PO Token support, local temp staging for network mounts, a redesigned home page with Pending/Retry/Failed tabs and live retry counters, per-item staging cleanup, yt-dlp version management, and the bgutil plugin baked into the image.
 
 For full technical details and migration guidance from upstream, see [Configuration Differences from Upstream](https://github.com/o51r15/pinchfork/wiki/Configuration-Differences).
 
@@ -69,18 +81,36 @@ For full technical details and migration guidance from upstream, see [Configurat
 
 ## Roadmap
 
-- [x] **v0.1.0** — PostgreSQL backend, Oban Basic engine, full-text search via `tsvector`
-- [x] **Source-level content availability filtering** — per-source controls for public vs. members-only content
-- [x] **Error classification** — permanent vs. transient failure detection; auto-prevents retry on permanent errors
-- [x] **SABR bypass / PO Token provider** — per-source Video Client override + bgutil sidecar support. See [SABR Bypass and PO Tokens](https://github.com/o51r15/pinchfork/wiki/SABR-Bypass-and-PO-Tokens)
-- [x] **Local temp staging** — `LOCALTEMP` env var for network-mount downloads. See [Local Temp Staging](https://github.com/o51r15/pinchfork/wiki/Local-Temp-Staging)
-- [x] **v0.3.0** — per-item staging cleanup, Pending/Retry/Failed tab split with live retry countdown
-- [x] **Oban Lifeline** — auto-rescues stuck jobs after crash or restart *(credit: [ddacunha](https://github.com/ddacunha))*
-- [x] **yt-dlp version management** — `YT_DLP_VERSION` env var *(credit: [ddacunha](https://github.com/ddacunha))*
-- [x] **Download prevention reason tracking** — `download_prevented_reason` field surfaced on media-item page
-- [x] **v0.3.1** — bgutil plugin baked into image (one-and-done sidecar setup), fail-open plugin dir fix
-- [x] **YouTube API key tester** — one-click validation in Settings *(credit: [ddacunha](https://github.com/ddacunha))*
-- [ ] **Queue diagnostics page** — Oban queue health, stuck job detection, bulk actions *(credit: [ddacunha](https://github.com/ddacunha))*
+**v0.1.0**
+- [x] PostgreSQL backend, Oban Basic engine, full-text search via `tsvector`
+
+**v0.2.x**
+- [x] Source-level content availability filtering — per-source controls for public vs. members-only content; `availability` field captured at index time
+- [x] Error classification — permanent vs. transient failure detection; permanently failed items auto-set `prevent_download: true` and stop consuming retry cycles
+- [x] SABR bypass / PO Token provider — per-source Video Client override + bgutil sidecar support. See [SABR Bypass and PO Tokens](https://github.com/o51r15/pinchfork/wiki/SABR-Bypass-and-PO-Tokens)
+- [x] Local temp staging — `LOCALTEMP` env var for network-mount downloads. See [Local Temp Staging](https://github.com/o51r15/pinchfork/wiki/Local-Temp-Staging)
+- [x] Full-text search hardening — `build_tsquery` hardened against edge-case input, FTS config switched to `simple` for multilingual library support, search trigger guard added
+- [x] Source form reorganization — Download Media / Content Availability / Cookie Behaviour / Video Client grouping; Fast Indexing help card made collapsible
+- [x] Oban Lifeline — auto-rescues stuck jobs after crash or restart *(credit: [ddacunha](https://github.com/ddacunha))*
+- [x] yt-dlp version management — `YT_DLP_VERSION` env var *(credit: [ddacunha](https://github.com/ddacunha))*
+- [x] YouTube API key tester — one-click validation in Settings *(credit: [ddacunha](https://github.com/ddacunha))*
+
+**v0.3.0**
+- [x] Per-item staging cleanup — each download isolated under its own staging dir; orphans auto-cleaned on failure, restart, and success
+- [x] Pending/Retry/Failed tab split — redesigned home page with live retry countdown and Retry Now / Force Retry actions
+
+**v0.3.1**
+- [x] bgutil plugin baked into image — one-and-done sidecar setup, no manual plugin mount
+- [x] Fail-open plugin dir fix — a missing or empty plugin directory can no longer break yt-dlp on a fresh install
+- [x] Download prevention reason tracking — `download_prevented_reason` field surfaced on media-item page
+
+**Upcoming**
+- [ ] SQLite→PostgreSQL migration tool — `mix pinchflat.migrate_sqlite` task to migrate an existing Pinchflat SQLite database to Pinchfork's PostgreSQL schema; adoption path for current Pinchflat users
+- [ ] UI filtering by availability and error type — filter media items by `availability` and `error_type` with shareable URL params
+- [ ] Enriched notification payloads — structured error data in Apprise/webhook notifications
+- [ ] PO Token / Visitor Data support — yt-dlp extractor args for tokens treated as sensitive credentials (encrypted at rest, never logged)
+- [ ] Media profile path UX — display output path template outside the edit form, show effective path on source overview pages, add Reset to preset button
+- [ ] Queue diagnostics page — Oban queue health, stuck job detection, bulk reset/cancel actions *(credit: [ddacunha](https://github.com/ddacunha))*
 
 ---
 
@@ -125,7 +155,7 @@ services:
       bgutil-provider:
         condition: service_started
     environment:
-      - TZ=America/New_York
+      - TZ=America/New_York  # set your timezone (IANA format)
       - DATABASE_URL=ecto://pinchflat:changeme@pinchfork-db/pinchflat
       - POOL_SIZE=10
     ports:
@@ -178,7 +208,7 @@ Key pages:
 - [Configuration Differences](https://github.com/o51r15/pinchfork/wiki/Configuration-Differences) — migrating from upstream Pinchflat
 - [FAQ](https://github.com/o51r15/pinchfork/wiki/FAQ) — common questions
 
-For base feature documentation (media profiles, sources, Jellyfin/Plex setup, cookies, SponsorBlock, RSS feeds, lifecycle scripts), the [upstream Pinchflat wiki](https://github.com/kieraneglin/pinchflat/wiki) remains accurate — only installation, the database backend, and the fork-specific features documented above differ.
+For topics not yet covered in the Pinchfork wiki, the [upstream Pinchflat wiki](https://github.com/kieraneglin/pinchflat/wiki) remains accurate for base features (media profiles, sources, Jellyfin/Plex setup, SponsorBlock, lifecycle scripts) — only installation, the database backend, and the fork-specific additions differ.
 
 ---
 
