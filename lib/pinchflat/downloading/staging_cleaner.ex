@@ -51,9 +51,7 @@ defmodule Pinchflat.Downloading.StagingCleaner do
           :ok
 
         {:error, reason, file} ->
-          Logger.debug(
-            "StagingCleaner: best-effort cleanup of #{dir} hit #{inspect(reason)} on #{file}; ignoring"
-          )
+          Logger.debug("StagingCleaner: best-effort cleanup of #{dir} hit #{inspect(reason)} on #{file}; ignoring")
 
           :ok
       end

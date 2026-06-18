@@ -30,8 +30,7 @@ config :pinchflat,
   timezone: "UTC",
   base_route_path: "/"
 
-config :pinchflat, Pinchflat.Repo,
-  pool_size: 10
+config :pinchflat, Pinchflat.Repo, pool_size: 10
 
 # Configures the endpoint
 config :pinchflat, PinchflatWeb.Endpoint,

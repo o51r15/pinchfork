@@ -73,13 +73,8 @@ defmodule Pinchflat.Settings.AppriseServerLive do
         <%!-- Hidden field carries the assembled pover:// URL to the settings form --%>
         <input type="hidden" name="setting[apprise_server]" value={@value} />
         <div class="mt-3 flex items-center gap-3">
-          <.icon_button
-            icon_name={@icon_name}
-            class="h-12 w-12"
-            phx-click="send_apprise_test"
-            tooltip={@tooltip}
-          />
-          <span class="text-xs text-bodydark1 font-mono"><%= @value %></span>
+          <.icon_button icon_name={@icon_name} class="h-12 w-12" phx-click="send_apprise_test" tooltip={@tooltip} />
+          <span class="text-xs text-bodydark1 font-mono">{@value}</span>
         </div>
       </div>
 
@@ -98,12 +93,7 @@ defmodule Pinchflat.Settings.AppriseServerLive do
           phx-change="apprise_server_changed"
         >
           <:input_append>
-            <.icon_button
-              icon_name={@icon_name}
-              class="h-12 w-12"
-              phx-click="send_apprise_test"
-              tooltip={@tooltip}
-            />
+            <.icon_button icon_name={@icon_name} class="h-12 w-12" phx-click="send_apprise_test" tooltip={@tooltip} />
           </:input_append>
         </.input>
       </div>
