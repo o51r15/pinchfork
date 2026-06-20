@@ -8,8 +8,16 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   alias Pinchflat.Utils.NumberUtils
   alias Pinchflat.Downloading.DownloadingHelpers
   alias PinchflatWeb.CustomComponents.TextComponents
+  alias PinchflatWeb.Helpers.SortingHelpers
 
   @limit 5
+
+  @default_sort %{
+    "downloaded" => {:media_downloaded_at, :desc},
+    "pending"    => {:inserted_at, :desc},
+    "retry"      => {:inserted_at, :desc},
+    "failed"     => {:inserted_at, :desc}
+  }
 
   def render(%{records: []} = assigns) do
     ~H"""
@@ -30,7 +38,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
         </span>
       </span>
       <div class="max-w-full overflow-x-auto">
-        <.table rows={@records} table_class="text-white">
+        <.table rows={@records} table_class="text-white" sort_key={to_string(@sort_attr)} sort_direction={@sort_dir}>
           <:col :let={media_item} label="Title" class="max-w-xs">
             <section class="flex items-center space-x-1">
               <.tooltip
@@ -48,10 +56,10 @@ defmodule Pinchflat.Pages.HistoryTableLive do
               </span>
             </section>
           </:col>
-          <:col :let={media_item} label="Upload Date">
+          <:col :let={media_item} label="Upload Date" sort_key="uploaded_at">
             {DateTime.to_date(media_item.uploaded_at)}
           </:col>
-          <:col :let={media_item} label="Indexed At">
+          <:col :let={media_item} label="Indexed At" sort_key="inserted_at">
             {format_datetime(media_item.inserted_at)}
           </:col>
           <:col :let={media_item} :if={@media_state == "retry"} label="Next Retry">
@@ -65,7 +73,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
             </span>
             <span :if={is_nil(media_item.next_retry_at)}>queued</span>
           </:col>
-          <:col :let={media_item} :if={@media_state == "downloaded"} label="Downloaded At">
+          <:col :let={media_item} :if={@media_state == "downloaded"} label="Downloaded At" sort_key="media_downloaded_at">
             {format_datetime(media_item.media_downloaded_at)}
           </:col>
           <:col :let={media_item} label="Source" class="truncate max-w-xs">
@@ -101,26 +109,40 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   def mount(_params, session, socket) do
     page = 1
     media_state = session["media_state"]
+    {sort_attr, sort_dir} = Map.get(@default_sort, media_state, {:inserted_at, :desc})
     base_query = generate_base_query(media_state)
-    pagination_attrs = fetch_pagination_attributes(base_query, page)
+    pagination_attrs = fetch_pagination_attributes(base_query, page, sort_attr, sort_dir)
 
     {:ok,
      assign(
        socket,
-       Map.merge(pagination_attrs, %{base_query: base_query, media_state: media_state})
+       Map.merge(pagination_attrs, %{
+         base_query: base_query,
+         media_state: media_state,
+         sort_attr: sort_attr,
+         sort_dir: sort_dir
+       })
      )}
+  end
+
+  def handle_event("sort_update", %{"sort_key" => sort_key}, %{assigns: assigns} = socket) do
+    new_attr = String.to_existing_atom(sort_key)
+    new_dir = SortingHelpers.get_sort_direction(assigns.sort_attr, new_attr, assigns.sort_dir)
+    new_assigns = fetch_pagination_attributes(assigns.base_query, 1, new_attr, new_dir)
+
+    {:noreply, assign(socket, Map.merge(new_assigns, %{sort_attr: new_attr, sort_dir: new_dir}))}
   end
 
   def handle_event("page_change", %{"direction" => direction}, %{assigns: assigns} = socket) do
     direction = if direction == "inc", do: 1, else: -1
     new_page = assigns.page + direction
-    new_assigns = fetch_pagination_attributes(assigns.base_query, new_page)
+    new_assigns = fetch_pagination_attributes(assigns.base_query, new_page, assigns.sort_attr, assigns.sort_dir)
 
     {:noreply, assign(socket, new_assigns)}
   end
 
   def handle_event("reload_page", _params, %{assigns: assigns} = socket) do
-    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.sort_attr, assigns.sort_dir)
 
     {:noreply, assign(socket, new_assigns)}
   end
@@ -131,7 +153,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
       media_item -> DownloadingHelpers.retry_now(media_item)
     end
 
-    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.sort_attr, assigns.sort_dir)
 
     {:noreply, assign(socket, new_assigns)}
   end
@@ -143,12 +165,9 @@ defmodule Pinchflat.Pages.HistoryTableLive do
         media_item -> DownloadingHelpers.force_retry(media_item)
       end
 
-    # Refresh the current tab's records regardless of outcome.
-    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page)
+    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.sort_attr, assigns.sort_dir)
     socket = assign(socket, new_assigns)
 
-    # On success, switch to Active Tasks so the user can see the download start.
-    # The job is queued immediately; Oban picks it up on its next poll (~1s).
     socket =
       case result do
         {:ok, _} -> push_event(socket, "switch-tab", %{tab: "active-tasks"})
@@ -158,19 +177,20 @@ defmodule Pinchflat.Pages.HistoryTableLive do
     {:noreply, socket}
   end
 
-  defp fetch_pagination_attributes(base_query, page) do
+  defp fetch_pagination_attributes(base_query, page, sort_attr, sort_dir) do
     total_record_count = Repo.aggregate(base_query, :count, :id)
     total_pages = max(ceil(total_record_count / @limit), 1)
     page = NumberUtils.clamp(page, 1, total_pages)
-    records = fetch_records(base_query, page)
+    records = fetch_records(base_query, page, sort_attr, sort_dir)
 
     %{page: page, total_pages: total_pages, records: records, total_record_count: total_record_count}
   end
 
-  defp fetch_records(base_query, page) do
+  defp fetch_records(base_query, page, sort_attr, sort_dir) do
     offset = (page - 1) * @limit
 
     base_query
+    |> order_by([{^sort_dir, ^sort_attr}])
     |> limit(^@limit)
     |> offset(^offset)
     |> Repo.all()
@@ -211,28 +231,24 @@ defmodule Pinchflat.Pages.HistoryTableLive do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
     |> where(^dynamic(^MediaQuery.staged_pending()))
-    |> order_by(desc: :id)
   end
 
   defp generate_base_query("retry") do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
     |> where(^dynamic(^MediaQuery.retrying()))
-    |> order_by(desc: :id)
   end
 
   defp generate_base_query("failed") do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
     |> where(^dynamic(^MediaQuery.failed()))
-    |> order_by(desc: :id)
   end
 
   defp generate_base_query("downloaded") do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
     |> where(^dynamic(^MediaQuery.downloaded()))
-    |> order_by(desc: :id)
   end
 
   defp format_datetime(nil), do: ""
