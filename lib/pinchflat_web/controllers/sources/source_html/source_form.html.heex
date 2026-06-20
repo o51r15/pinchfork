@@ -3,28 +3,20 @@
   for={@changeset}
   action={@action}
   method={@method}
-  x-data="{ advancedMode: !!JSON.parse(localStorage.getItem('advancedMode')) }"
-  x-init="$watch('advancedMode', value => localStorage.setItem('advancedMode', JSON.stringify(value)))"
+  x-data="{ mediaProfileId: null }"
 >
   <.error :if={@changeset.action}>
     Oops, something went wrong! Please check the errors below.
   </.error>
 
-  <section x-data="{ mediaProfileId: null }">
-    <section class="flex justify-between items-center mt-4">
-      <h3 class="text-2xl text-white">
-        General Options
-      </h3>
-      <span class="cursor-pointer hover:underline" x-on:click="advancedMode = !advancedMode">
-        Editing Mode: <span x-text="advancedMode ? 'Advanced' : 'Standard'"></span>
-      </span>
-    </section>
+  <%!-- GENERAL --%>
+  <section class="mt-4">
+    <h3 class="text-2xl text-white mb-4">General</h3>
 
     <.input
       field={f[:original_url]}
       type="text"
       label="Source URL"
-      help="URL of a channel or playlist (required)"
       x-init="$el.focus()"
     />
 
@@ -32,7 +24,6 @@
       field={f[:custom_name]}
       type="text"
       label="Custom Name"
-      help="Does not impact indexing or downloading. Will be inferred from the source if left blank"
     />
 
     <.input
@@ -40,13 +31,18 @@
       options={Enum.map(@media_profiles, &{&1.name, &1.id})}
       type="select"
       label="Media Profile"
-      help="Sets your preferences for what media to look for and how to store it"
       x-model.fill="mediaProfileId"
     />
+  </section>
 
-    <h3 class="mt-8 text-2xl text-black dark:text-white">
-      Indexing Options
-    </h3>
+  <%!-- INDEXING --%>
+  <section class="mt-8">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-2xl text-black dark:text-white">Indexing</h3>
+      <.link href="https://github.com/o51r15/pinchfork/wiki" target="_blank" class="text-sm hover:underline">
+        📖 Docs
+      </.link>
+    </div>
 
     <section x-data="{ fastIndexingEnabled: null }">
       <.input
@@ -56,59 +52,37 @@
         label="Index Frequency"
         x-bind:disabled="fastIndexingEnabled == true"
         x-init="$watch('fastIndexingEnabled', v => v && ($el.value = 30 * 24 * 60))"
-        help="Indexing is the process of checking for media to download. For best results, set this to the longest delay you can tolerate for this source"
       />
 
-      <div phx-click={show_modal("upgrade-modal")}>
-        <.input
-          field={f[:fast_index]}
-          type="toggle"
-          label="Use Fast Indexing"
-          label_suffix="(pro)"
-          help="Not recommended for playlists. Overrides 'Index Frequency'. See below for more details (seriously, there's a TL;DR that's worth reading)"
-          x-init="
-          // `enabled` is the data attribute that the toggle uses internally
+      <.input
+        field={f[:fast_index]}
+        type="toggle"
+        label="Use Fast Indexing"
+        x-init="
           fastIndexingEnabled = enabled
           $watch('enabled', value => fastIndexingEnabled = !!value)
         "
-        />
-      </div>
+      />
     </section>
+  </section>
 
-    <h3 class="mt-8 text-2xl text-black dark:text-white">
-      Downloading Options
-    </h3>
+  <%!-- CONTENT --%>
+  <section class="mt-8">
+    <h3 class="text-2xl text-black dark:text-white mb-4">Content</h3>
 
     <.input
       field={f[:download_media]}
       type="toggle"
       label="Download Media"
-      help="Unchecking still indexes media but it won't be downloaded until you enable this option"
     />
 
     <div class="mt-4 mb-2">
       <label class="mb-1 block text-sm font-medium text-black dark:text-white">Content Availability</label>
-      <p class="text-sm text-gray-500 dark:text-gray-400 mb-3">
-        Select which videos to download. Unlisted and private videos are always skipped.
-      </p>
-      <div class="flex flex-col gap-2">
+      <div class="flex flex-col gap-2 mt-2">
         <.input field={f[:download_public_videos]} type="checkbox" label="Download public videos" />
-        <.input
-          field={f[:download_members_videos]}
-          type="checkbox"
-          label="Download members-only videos"
-          help="Includes subscriber-only, premium, and auth-required content. Requires cookies, so it can't be used with a cookie-incompatible Video Client (see Advanced Options)."
-        />
+        <.input field={f[:download_members_videos]} type="checkbox" label="Download members-only videos" />
       </div>
     </div>
-
-    <.input
-      field={f[:cookie_behaviour]}
-      options={friendly_cookie_behaviours()}
-      type="select"
-      label="Cookie Behaviour"
-      help="Uses your YouTube cookies for this source (if configured). 'When Needed' tries to minimize cookie usage except for certain indexing and downloading tasks. See docs"
-    />
 
     <section x-data={"{ cutoffDate: '#{f[:download_cutoff_date].value}' }"}>
       <.input
@@ -119,7 +93,6 @@
         maxlength="10"
         pattern="((?:19|20)[0-9][0-9])-(0[1-9]|1[012])-(0[1-9]|[12][0-9]|3[01])"
         title="YYYY-MM-DD"
-        help="Only download media uploaded after this date. Leave blank to download all media. Must be in YYYY-MM-DD format. Old media may be deleted or downloaded if you change this date"
         x-model="cutoffDate"
       >
         <:input_append>
@@ -141,102 +114,152 @@
       type="number"
       label="Retention Period (days)"
       min="0"
-      help="Days between when media is <em>downloaded</em> and when it's deleted. Leave blank to keep media indefinitely"
-      html_help={true}
+    />
+  </section>
+
+  <%!-- COOKIES --%>
+  <section class="mt-8">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-2xl text-black dark:text-white">Cookies</h3>
+      <.link href="https://github.com/o51r15/pinchfork/wiki/YouTube-Cookies" target="_blank" class="text-sm hover:underline">
+        📖 Docs
+      </.link>
+    </div>
+
+    <.input
+      field={f[:cookie_behaviour]}
+      options={friendly_cookie_behaviours()}
+      type="select"
+      label="Cookie Behaviour"
+    />
+  </section>
+
+  <%!-- FILTERS --%>
+  <section class="mt-8">
+    <h3 class="text-2xl text-black dark:text-white mb-4">Filters</h3>
+
+    <.input
+      field={f[:min_duration_seconds]}
+      type="number"
+      label="Minimum Duration (seconds)"
+      min="0"
     />
 
-    <section x-show="advancedMode">
-      <h3 class="mt-8 text-2xl text-black dark:text-white">
-        Advanced Options
-      </h3>
-      <p class="text-sm mt-2">
-        Tread carefully
-      </p>
+    <.input
+      field={f[:max_duration_seconds]}
+      type="number"
+      label="Maximum Duration (seconds)"
+      min="0"
+    />
 
-      <.input
-        field={f[:min_duration_seconds]}
-        type="number"
-        label="Minimum Duration (seconds)"
-        min="0"
-        help="Minimum duration of the media to be downloaded. Can be blank"
-      />
+    <.input
+      field={f[:title_filter_regex]}
+      type="text"
+      label="Title Filter Regex"
+      placeholder="(?i)^How to Bike$"
+    />
+  </section>
 
-      <.input
-        field={f[:max_duration_seconds]}
-        type="number"
-        label="Maximum Duration (seconds)"
-        min="0"
-        help="Maximum duration of the media to be downloaded. Can be blank"
-      />
+  <%!-- OUTPUT --%>
+  <section class="mt-8">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-2xl text-black dark:text-white">Output</h3>
+      <.link href="https://github.com/o51r15/pinchfork/wiki" target="_blank" class="text-sm hover:underline">
+        📖 Docs
+      </.link>
+    </div>
 
-      <.input
-        field={f[:title_filter_regex]}
-        type="text"
-        label="Title Filter Regex"
-        placeholder="(?i)^How to Bike$"
-        help={title_filter_regex_help()}
-        html_help={true}
-      />
-
-      <section
-        x-data={
-          """
-          { 
-            placeholders: JSON.parse('#{output_path_template_override_placeholders(@media_profiles)}'),
-            inputValue: null
-          }
-          """
+    <section
+      x-data={
+        """
+        {
+          placeholders: JSON.parse('#{output_path_template_override_placeholders(@media_profiles)}'),
+          inputValue: null
         }
-        x-on:load-template="inputValue = placeholders[mediaProfileId]"
-      >
-        <.input
-          field={f[:output_path_template_override]}
-          type="text"
-          inputclass="font-mono"
-          label="Output path template override"
-          help={output_path_template_override_help()}
-          html_help={true}
-          x-bind:placeholder="placeholders[mediaProfileId]"
-          x-model.fill="inputValue"
-        />
-      </section>
-
+        """
+      }
+      x-on:load-template="inputValue = placeholders[mediaProfileId]"
+    >
       <.input
-        field={f[:client_override]}
-        options={[
-          {"Default (recommended — yt-dlp picks the best client)", nil},
-          {"Cookie-compatible (members-only & private content work)",
-           [
-             {"web_creator — recommended override; clean + cookies", "web_creator,tv"},
-             {"tv — clean, cookie-capable", "tv"},
-             {"web_safari — cookies; needs the POT sidecar for SABR", "web_safari"},
-             {"mweb — cookies; needs the POT sidecar", "mweb"},
-             {"web — cookies; SABR-only, needs the POT sidecar", "web"}
-           ]},
-          {"⚠ Cookie-INCOMPATIBLE (members-only & private will NOT work)",
-           [
-             {"android_vr — no token needed; no cookies; no 'made for kids'", "android_vr"},
-             {"android — no cookies; needs the POT sidecar", "android"},
-             {"ios — no cookies; currently broken on this binary", "ios"},
-             {"tv_simply — no cookies; needs the POT sidecar", "tv_simply"}
-           ]}
-        ]}
-        type="select"
-        label="Video Client (advanced)"
-        help="Leave as Default unless downloads fail. Overrides which yt-dlp player client(s) are used. Cookie-incompatible clients can't fetch members-only or private content — saving is blocked if you pick one while members-only downloads or cookies are enabled. Most overrides need the bgutil POT provider sidecar running to avoid SABR/token errors."
-        html_help={false}
+        field={f[:output_path_template_override]}
+        type="text"
+        inputclass="font-mono"
+        label="Output Path Template Override"
+        x-bind:placeholder="placeholders[mediaProfileId]"
+        x-model.fill="inputValue"
       />
     </section>
-
-    <.button class="my-10 sm:mb-7.5 w-full sm:w-auto" rounding="rounded-lg">Save Source</.button>
-
-    <details class="rounded-sm dark:bg-meta-4 p-4 md:p-6 mb-5">
-      <summary class="cursor-pointer font-medium text-black dark:text-white">
-        Fast Indexing &mdash; how it works (worth a read)
-      </summary>
-      <div class="mt-4">
-        <.fast_indexing_help />
-      </div>
-    </details>
   </section>
+
+  <%!-- VIDEO CLIENT --%>
+  <section class="mt-8">
+    <div class="flex justify-between items-center mb-4">
+      <h3 class="text-2xl text-black dark:text-white">Video Client</h3>
+      <.link href="https://github.com/o51r15/pinchfork/wiki/SABR-Bypass-and-PO-Tokens" target="_blank" class="text-sm hover:underline">
+        📖 Docs
+      </.link>
+    </div>
+
+    <.input
+      field={f[:client_override]}
+      options={[
+        {"Default (recommended — yt-dlp picks the best client)", nil},
+        {"Cookie-compatible (members-only & private content work)",
+         [
+           {"web_creator — recommended override; clean + cookies", "web_creator,tv"},
+           {"tv — clean, cookie-capable", "tv"},
+           {"web_safari — cookies; needs the POT sidecar for SABR", "web_safari"},
+           {"mweb — cookies; needs the POT sidecar", "mweb"},
+           {"web — cookies; SABR-only, needs the POT sidecar", "web"}
+         ]},
+        {"⚠ Cookie-INCOMPATIBLE (members-only & private will NOT work)",
+         [
+           {"android_vr — no token needed; no cookies; no 'made for kids'", "android_vr"},
+           {"android — no cookies; needs the POT sidecar", "android"},
+           {"ios — no cookies; currently broken on this binary", "ios"},
+           {"tv_simply — no cookies; needs the POT sidecar", "tv_simply"}
+         ]}
+      ]}
+      type="select"
+      label="Video Client"
+    />
+  </section>
+
+  <.button class="my-10 sm:mb-7.5 w-full sm:w-auto" rounding="rounded-lg">Save Source</.button>
+
+  <%!-- DANGER ZONE --%>
+  <%= if @changeset.data.id do %>
+    <section class="mt-4 mb-8 border border-red-800 rounded-lg p-6">
+      <h3 class="text-xl font-bold text-red-500 mb-4">Danger Zone</h3>
+      <div class="flex flex-col gap-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-medium text-white">Delete Source</p>
+            <p class="text-sm text-gray-400">Removes this source. Downloaded files are kept on disk.</p>
+          </div>
+          <.link
+            href={~p"/sources/#{@changeset.data}"}
+            method="delete"
+            data-confirm="Are you sure you want to delete this source (leaving files in place)? This cannot be undone."
+          >
+            <.button color="bg-red-700 hover:bg-red-800" rounding="rounded-lg">Delete Source</.button>
+          </.link>
+        </div>
+        <div class="h-px w-full bg-strokedark"></div>
+        <div class="flex items-center justify-between">
+          <div>
+            <p class="font-medium text-white">Delete Source + Files</p>
+            <p class="text-sm text-gray-400">Removes this source and permanently deletes all downloaded files from disk.</p>
+          </div>
+          <.link
+            href={~p"/sources/#{@changeset.data}?delete_files=true"}
+            method="delete"
+            data-confirm="Are you sure you want to delete this source and its files on disk? This cannot be undone."
+          >
+            <.button color="bg-red-900 hover:bg-red-950" rounding="rounded-lg">Delete + Files</.button>
+          </.link>
+        </div>
+      </div>
+    </section>
+  <% end %>
 </.simple_form>

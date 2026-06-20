@@ -6,6 +6,7 @@ defmodule PinchflatWeb.Sources.SourceController do
   alias Pinchflat.Tasks
   alias Pinchflat.Sources
   alias Pinchflat.Sources.Source
+  alias Pinchflat.Media.MediaItem
   alias Pinchflat.Profiles.MediaProfile
   alias Pinchflat.Media.FileSyncingWorker
   alias Pinchflat.Sources.SourceDeletionWorker
@@ -14,7 +15,98 @@ defmodule PinchflatWeb.Sources.SourceController do
   alias Pinchflat.Metadata.SourceMetadataStorageWorker
 
   def index(conn, _params) do
-    render(conn, :index)
+    sources =
+      from(s in Source,
+        where: is_nil(s.marked_for_deletion_at),
+        order_by: [asc: s.custom_name]
+      )
+      |> Repo.all()
+
+    render(conn, :index, sources: sources)
+  end
+
+  # Serves the poster image for a source. Falls back to an SVG placeholder
+  # with the source's initial when no poster file exists on disk.
+  def poster(conn, %{"id" => id}) do
+    source = Sources.get_source!(id)
+
+    poster_path =
+      source.poster_filepath ||
+        case Repo.preload(source, :metadata) do
+          %{metadata: %{poster_filepath: path}} when not is_nil(path) -> path
+          _ -> nil
+        end
+
+    if poster_path && File.exists?(poster_path) do
+      mime_type =
+        case Path.extname(poster_path) |> String.downcase() do
+          ".png" -> "image/png"
+          ".webp" -> "image/webp"
+          _ -> "image/jpeg"
+        end
+
+      conn
+      |> put_resp_content_type(mime_type)
+      |> send_file(200, poster_path)
+    else
+      initial = (source.custom_name || source.collection_name || "?") |> String.first() |> String.upcase()
+
+      svg = """
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">
+        <rect width="200" height="300" fill="#1c2333"/>
+        <text x="100" y="175" text-anchor="middle" dominant-baseline="middle"
+              font-size="110" font-family="sans-serif" font-weight="bold" fill="#374151">
+          #{initial}
+        </text>
+      </svg>
+      """
+
+      conn
+      |> put_resp_content_type("image/svg+xml")
+      |> send_resp(200, svg)
+    end
+  end
+
+  # Serves the fanart (banner) image for a source. Falls back to a dark SVG
+  # gradient when no fanart file exists — used as the show page header background.
+  def fanart(conn, %{"id" => id}) do
+    source = Sources.get_source!(id)
+
+    fanart_path =
+      source.fanart_filepath ||
+        case Repo.preload(source, :metadata) do
+          %{metadata: %{fanart_filepath: path}} when not is_nil(path) -> path
+          _ -> nil
+        end
+
+    if fanart_path && File.exists?(fanart_path) do
+      mime_type =
+        case Path.extname(fanart_path) |> String.downcase() do
+          ".png" -> "image/png"
+          ".webp" -> "image/webp"
+          _ -> "image/jpeg"
+        end
+
+      conn
+      |> put_resp_content_type(mime_type)
+      |> send_file(200, fanart_path)
+    else
+      svg = """
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
+        <defs>
+          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stop-color="#111827"/>
+            <stop offset="100%" stop-color="#1f2937"/>
+          </linearGradient>
+        </defs>
+        <rect width="1280" height="720" fill="url(#bg)"/>
+      </svg>
+      """
+
+      conn
+      |> put_resp_content_type("image/svg+xml")
+      |> send_resp(200, svg)
+    end
   end
 
   def new(conn, params) do
@@ -49,12 +141,9 @@ defmodule PinchflatWeb.Sources.SourceController do
   def create(conn, %{"source" => source_params}) do
     case Sources.create_source(source_params) do
       {:ok, source} ->
-        redirect_location =
-          if Settings.get!(:onboarding), do: ~p"/?onboarding=1", else: ~p"/sources/#{source}"
-
         conn
         |> put_flash(:info, "Source created successfully.")
-        |> redirect(to: redirect_location)
+        |> redirect(to: ~p"/sources/#{source}")
 
       {:error, %Ecto.Changeset{} = changeset} ->
         render(conn, :new,
@@ -73,7 +162,18 @@ defmodule PinchflatWeb.Sources.SourceController do
       |> Tasks.list_tasks_for(nil, [:executing, :available, :scheduled, :retryable])
       |> Repo.preload(:job)
 
-    render(conn, :show, source: source, pending_tasks: pending_tasks)
+    counts =
+      from(mi in MediaItem,
+        where: mi.source_id == ^source.id,
+        select: %{
+          total: count(mi.id),
+          downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath)),
+          pending: count(fragment("CASE WHEN ? IS NULL AND ? = false THEN 1 END", mi.media_filepath, mi.prevent_download))
+        }
+      )
+      |> Repo.one()
+
+    render(conn, :show, source: source, pending_tasks: pending_tasks, counts: counts)
   end
 
   def edit(conn, %{"id" => id}) do
@@ -175,10 +275,6 @@ defmodule PinchflatWeb.Sources.SourceController do
   end
 
   defp get_onboarding_layout do
-    if Settings.get!(:onboarding) do
-      {Layouts, :onboarding}
-    else
-      {Layouts, :app}
-    end
+    {Layouts, :app}
   end
 end

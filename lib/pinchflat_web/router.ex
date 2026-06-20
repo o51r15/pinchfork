@@ -51,6 +51,10 @@ defmodule PinchflatWeb.Router do
     get "/app_info", Settings.SettingController, :app_info
     get "/download_logs", Settings.SettingController, :download_logs
 
+    # Must be declared before resources "/sources" to avoid conflict with nested routes
+    get "/sources/:id/poster", Sources.SourceController, :poster
+    get "/sources/:id/fanart", Sources.SourceController, :fanart
+
     resources "/sources", Sources.SourceController do
       post "/force_download_pending", Sources.SourceController, :force_download_pending
       post "/force_redownload", Sources.SourceController, :force_redownload

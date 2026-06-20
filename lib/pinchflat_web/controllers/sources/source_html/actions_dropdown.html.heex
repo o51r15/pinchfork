@@ -16,7 +16,7 @@
     <span x-data="{ copied: false }" x-on:click={~s"
         copyWithCallbacks(
           String.raw`#{Jason.Formatter.pretty_print(Phoenix.json_library().encode!(@source))}`,
-          () => copied = true, 
+          () => copied = true,
           () => copied = false
         )
       "}>
@@ -36,7 +36,7 @@
     <.link
       href={~p"/sources/#{@source}/force_download_pending"}
       method="post"
-      data-confirm="Are you sure you want to force a download of all pending media items? This isn't normally needed."
+      data-confirm="Force a download of all pending media items?"
     >
       Download Pending
     </.link>
@@ -45,7 +45,7 @@
     <.link
       href={~p"/sources/#{@source}/force_redownload"}
       method="post"
-      data-confirm="Are you sure you want to re-download all currently downloaded media items? This doesn't upgrade your media, but will download any missing files if your settings have changed. This isn't normally needed."
+      data-confirm="Re-download all currently downloaded media items?"
     >
       Redownload Existing
     </.link>
@@ -54,7 +54,7 @@
     <.link
       href={~p"/sources/#{@source}/force_index"}
       method="post"
-      data-confirm="Are you sure you want index all content from this source? This isn't normally needed."
+      data-confirm="Force index all content from this source?"
     >
       Force Index
     </.link>
@@ -63,7 +63,7 @@
     <.link
       href={~p"/sources/#{@source}/force_metadata_refresh"}
       method="post"
-      data-confirm="Are you sure you want to refresh this source's metadata?"
+      data-confirm="Refresh this source's metadata?"
     >
       Refresh Metadata
     </.link>
@@ -72,31 +72,9 @@
     <.link
       href={~p"/sources/#{@source}/sync_files_on_disk"}
       method="post"
-      data-confirm="Are you sure you want to sync files? This will update media items if their files have been deleted. File addition or moves are not detected. This isn't normally needed."
+      data-confirm="Sync files on disk? Updates media items if files have been deleted. File additions or moves are not detected."
     >
       Sync Files on Disk
-    </.link>
-  </:option>
-  <:option>
-    <div class="h-px w-full bg-bodydark2"></div>
-  </:option>
-  <:option>
-    <.link
-      href={~p"/sources/#{@source}"}
-      method="delete"
-      data-confirm="Are you sure you want to delete this source (leaving files in place)? This cannot be undone."
-    >
-      Delete Source
-    </.link>
-  </:option>
-  <:option>
-    <.link
-      href={~p"/sources/#{@source}?delete_files=true"}
-      method="delete"
-      data-confirm="Are you sure you want to delete this source and it's files on disk? This cannot be undone."
-      class="mt-5 md:mt-0"
-    >
-      Delete Source + Files
     </.link>
   </:option>
 </.button_dropdown>

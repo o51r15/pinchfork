@@ -1,43 +1,79 @@
-<div class="mb-6 flex gap-3 flex-row items-center justify-between">
-  <div class="flex gap-3 items-center min-w-0">
-    <.link href={~p"/sources"}>
-      <.icon name="hero-arrow-left" class="w-10 h-10 hover:dark:text-white" />
-    </.link>
-    <h2 class="text-title-md2 font-bold text-black dark:text-white ml-4 truncate">
-      {@source.custom_name}
-    </h2>
+<%!-- SONARR-STYLE HEADER: fanart banner + poster overlay + title + actions --%>
+<div class="relative mb-4 rounded-lg overflow-hidden">
+  <%!-- Fanart background --%>
+  <div class="h-48 md:h-64 w-full">
+    <img
+      src={~p"/sources/#{@source.id}/fanart"}
+      alt=""
+      class="w-full h-full object-cover"
+    />
+    <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
   </div>
 
-  <nav>
-    <.link href={~p"/sources/#{@source}/edit"}>
-      <.button color="bg-primary" rounding="rounded-lg">
-        <.icon name="hero-pencil-square" class="mr-2" /> Edit <span class="hidden sm:inline pl-1">Source</span>
-      </.button>
+  <%!-- Back arrow — top left --%>
+  <div class="absolute top-3 left-3">
+    <.link href={~p"/sources"}>
+      <.icon name="hero-arrow-left" class="w-8 h-8 text-white drop-shadow" />
     </.link>
-  </nav>
+  </div>
+
+  <%!-- Poster + title anchored to bottom of banner --%>
+  <div class="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-4">
+    <%!-- Poster --%>
+    <div class="hidden sm:block flex-shrink-0 w-24 rounded-lg overflow-hidden shadow-2xl" style="aspect-ratio: 2/3;">
+      <img
+        src={~p"/sources/#{@source.id}/poster"}
+        alt={@source.custom_name}
+        class="w-full h-full object-cover"
+      />
+    </div>
+
+    <%!-- Title + meta --%>
+    <div class="flex-1 min-w-0">
+      <h2 class="text-2xl font-bold text-white truncate drop-shadow">
+        {@source.custom_name}
+      </h2>
+      <p class="text-sm text-gray-300 capitalize">
+        {@source.collection_type} &bull; {@source.media_profile.name}
+      </p>
+    </div>
+  </div>
 </div>
+
+<%!-- Action buttons — outside overflow-hidden so dropdown isn't clipped --%>
+<div class="flex items-center justify-end gap-2 mb-6">
+  <.link href={~p"/sources/#{@source}/edit"}>
+    <.button color="bg-primary" rounding="rounded-lg">
+      <.icon name="hero-pencil-square" class="mr-1" /> Edit
+    </.button>
+  </.link>
+  <.actions_dropdown source={@source} conn={@conn} />
+</div>
+
+<%!-- STATS BAR --%>
+<div class="flex gap-8 mb-6 px-1">
+  <div>
+    <p class="text-xl font-bold text-white"><.localized_number number={@counts.total} /></p>
+    <p class="text-xs text-gray-400 uppercase tracking-wide">Total</p>
+  </div>
+  <div>
+    <p class="text-xl font-bold text-green-400"><.localized_number number={@counts.downloaded} /></p>
+    <p class="text-xs text-gray-400 uppercase tracking-wide">Downloaded</p>
+  </div>
+  <div>
+    <p class="text-xl font-bold text-blue-400"><.localized_number number={@counts.pending} /></p>
+    <p class="text-xs text-gray-400 uppercase tracking-wide">Pending</p>
+  </div>
+  <div>
+    <p class="text-xl font-bold text-gray-400"><.localized_number number={@counts.total - @counts.downloaded - @counts.pending} /></p>
+    <p class="text-xs text-gray-400 uppercase tracking-wide">Other</p>
+  </div>
+</div>
+
+<%!-- TABS --%>
 <div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
   <div class="max-w-full">
     <.tabbed_layout>
-      <:tab_append>
-        <.actions_dropdown source={@source} conn={@conn} />
-      </:tab_append>
-
-      <:tab title="Source" id="source">
-        <div class="flex flex-col text-white gap-10">
-          <section>
-            <h3 class="font-bold text-xl mb-2 mt-6">Raw Attributes</h3>
-            <section>
-              <strong>Media Profile:</strong>
-              <.subtle_link href={~p"/media_profiles/#{@source.media_profile_id}"}>
-                {@source.media_profile.name}
-              </.subtle_link>
-            </section>
-
-            <.list_items_from_map map={Map.from_struct(@source)} />
-          </section>
-        </div>
-      </:tab>
       <:tab title="Pending" id="pending">
         {live_render(
           @conn,
@@ -59,11 +95,11 @@
           session: %{"source_id" => @source.id, "media_state" => "other"}
         )}
       </:tab>
-      <:tab title="Tasks" id="tasks">
+      <:tab title="Jobs" id="jobs">
         <%= if match?([_|_], @pending_tasks) do %>
           <.table rows={@pending_tasks} table_class="text-black dark:text-white">
-            <:col :let={task} label="Worker">
-              {task.job.worker}
+            <:col :let={task} label="Job">
+              {task.job.worker |> String.split(".") |> List.last() |> Macro.underscore() |> String.replace("_", " ") |> String.capitalize()}
             </:col>
             <:col :let={task} label="State">
               {task.job.state}
@@ -73,7 +109,7 @@
             </:col>
           </.table>
         <% else %>
-          <p>Nothing Here!</p>
+          <p>No active jobs.</p>
         <% end %>
       </:tab>
     </.tabbed_layout>
