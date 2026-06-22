@@ -43,6 +43,7 @@ defmodule PinchflatWeb.Router do
     pipe_through :browser
 
     get "/", Pages.PageController, :home
+    get "/stats", Pages.PageController, :stats
     get "/activity", Pages.PageController, :activity
 
     resources "/media_profiles", MediaProfiles.MediaProfileController
@@ -56,6 +57,9 @@ defmodule PinchflatWeb.Router do
     post "/system/test_po_token", System.SystemController, :test_po_token
     get "/system/logs", Settings.SettingController, :download_logs
     get "/system/backup", System.SystemController, :backup
+    post "/system/backup", System.SystemController, :create_backup
+    get "/system/backup/:filename/download", System.SystemController, :download_backup
+    delete "/system/backup/:filename", System.SystemController, :delete_backup
     get "/system/updates", System.SystemController, :updates
 
     # Must be declared before resources "/sources" to avoid conflict with nested routes

@@ -1,13 +1,105 @@
-<div class="mb-6">
+<div class="mb-6 flex items-center justify-between">
   <h2 class="text-title-md2 font-bold text-white">Backup</h2>
+  <.link href={~p"/system/backup"} method="post">
+    <.button color="bg-primary" rounding="rounded-lg">
+      <.icon name="hero-archive-box-arrow-down" class="mr-2 h-4 w-4" />
+      Backup Now
+    </.button>
+  </.link>
 </div>
 
-<div class="rounded-sm border border-stroke bg-white px-6 py-10 shadow-default dark:border-strokedark dark:bg-boxdark text-center">
-  <.icon name="hero-wrench-screwdriver" class="w-12 h-12 text-gray-500 mx-auto mb-4" />
-  <h3 class="text-lg font-semibold text-white mb-2">Under Construction</h3>
-  <p class="text-sm text-gray-400 max-w-md mx-auto">
-    Automated backup tooling is planned for a future release. In the meantime,
-    back up your Postgres database with <code class="font-mono text-xs bg-meta-4 px-1.5 py-0.5 rounded">pg_dump</code>
-    and your <code class="font-mono text-xs bg-meta-4 px-1.5 py-0.5 rounded">/config</code> volume.
-  </p>
+<div class="grid grid-cols-1 gap-6">
+
+  <%!-- Backup list --%>
+  <div class="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
+    <div class="px-6 py-4 border-b border-strokedark">
+      <h3 class="text-lg font-semibold text-white">Existing Backups</h3>
+      <p class="text-sm text-gray-400 mt-1">
+        Stored at <code class="font-mono text-xs bg-meta-4 px-1.5 py-0.5 rounded">/backups</code>
+        inside the container. Map this to a host directory in your compose file.
+      </p>
+    </div>
+
+    <%= if @backups == [] do %>
+      <div class="px-6 py-10 text-center">
+        <.icon name="hero-archive-box" class="w-10 h-10 text-gray-600 mx-auto mb-3" />
+        <p class="text-sm text-gray-400">No backups yet. Click <strong class="text-gray-300">Backup Now</strong> to create one.</p>
+      </div>
+    <% else %>
+      <div class="max-w-full overflow-x-auto">
+        <table class="w-full text-sm text-left">
+          <thead>
+            <tr class="border-b border-strokedark text-gray-400 uppercase text-xs">
+              <th class="px-6 py-3 font-medium">Filename</th>
+              <th class="px-6 py-3 font-medium">Size</th>
+              <th class="px-6 py-3 font-medium">Created</th>
+              <th class="px-6 py-3 font-medium text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <%= for backup <- @backups do %>
+              <tr class="border-b border-strokedark hover:bg-meta-4 transition-colors">
+                <td class="px-6 py-3 text-white font-mono text-xs">{backup.filename}</td>
+                <td class="px-6 py-3 text-gray-300">
+                  <.readable_filesize byte_size={backup.size_bytes} />
+                </td>
+                <td class="px-6 py-3 text-gray-300">
+                  {Calendar.strftime(backup.created_at, "%Y-%m-%d %H:%M UTC")}
+                </td>
+                <td class="px-6 py-3 text-right">
+                  <div class="flex items-center justify-end gap-2">
+                    <.link
+                      href={~p"/system/backup/#{backup.filename}/download"}
+                      class="flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-strokedark bg-meta-4 hover:bg-meta-3 text-white transition-colors"
+                    >
+                      <.icon name="hero-arrow-down-tray" class="w-3.5 h-3.5" /> Download
+                    </.link>
+                    <.link
+                      href={~p"/system/backup/#{backup.filename}"}
+                      method="delete"
+                      data-confirm="Delete this backup? This cannot be undone."
+                      class="flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-red-800 bg-meta-4 hover:bg-red-900 text-red-400 transition-colors"
+                    >
+                      <.icon name="hero-trash" class="w-3.5 h-3.5" /> Delete
+                    </.link>
+                  </div>
+                </td>
+              </tr>
+            <% end %>
+          </tbody>
+        </table>
+      </div>
+    <% end %>
+  </div>
+
+  <%!-- Settings card --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">Backup Settings</h3>
+    <table class="w-full text-sm">
+      <tbody>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400 w-1/2">Backup directory</td>
+          <td class="py-2 text-white font-mono text-xs">/backups</td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Retention</td>
+          <td class="py-2 text-white">Last {Pinchflat.Backups.max_backups()} backups kept automatically</td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Contents</td>
+          <td class="py-2 text-gray-300 text-xs">Full PostgreSQL dump (sources, media items, profiles, settings)</td>
+        </tr>
+        <tr>
+          <td class="py-2 text-gray-400">Format</td>
+          <td class="py-2 text-white font-mono text-xs">.sql.gz (plain SQL, gzip compressed)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p class="mt-4 text-xs text-gray-500">
+      To restore: decompress with <code class="bg-meta-4 px-1 rounded">gzip -d filename.sql.gz</code>
+      then run <code class="bg-meta-4 px-1 rounded">psql -h host -U user -d pinchflat &lt; filename.sql</code>.
+      Scheduled backups are planned for a future release.
+    </p>
+  </div>
+
 </div>

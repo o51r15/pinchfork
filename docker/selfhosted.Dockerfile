@@ -76,13 +76,18 @@ FROM ${RUNNER_IMAGE}
 ARG TARGETPLATFORM
 ARG PORT=8945
 
-# Version of the bgutil POT provider yt-dlp PLUGIN to bake in. Must match the bgutil
-# HTTP sidecar image tag the user runs (brainicism/bgutil-ytdlp-pot-provider). The plugin
-# is pure Python (no per-arch variants) so the same zip works on amd64 and arm64.
-ARG BGUTIL_PLUGIN_VERSION=1.3.1
-
 COPY --from=builder ./usr/local/bin/ffmpeg /usr/bin/ffmpeg
 COPY --from=builder ./usr/local/bin/ffprobe /usr/bin/ffprobe
+
+# Add the official PostgreSQL APT repository so we can install postgresql-client-16
+# to match the postgres:16 sidecar container. Debian Bookworm only ships client-15.
+RUN apt-get update -y && \
+    apt-get install -y curl gnupg && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      | gpg --dearmor -o /usr/share/keyrings/postgresql-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql-keyring.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/postgresql.list && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 RUN apt-get update -y && \
     # System packages
@@ -102,7 +107,9 @@ RUN apt-get update -y && \
       jq \
       # unzip is needed for Deno
       unzip \
-      procps && \
+      procps \
+      # postgresql-client-16 provides pg_dump matching the postgres:16 sidecar
+      postgresql-client-16 && \
     # Install Deno - required for YouTube downloads (See yt-dlp#14404)
     curl -fsSL https://deno.land/install.sh | DENO_INSTALL=/usr/local sh -s -- -y --no-modify-path && \
     # Apprise
@@ -131,21 +138,8 @@ ENV LC_ALL=en_US.UTF-8
 WORKDIR "/app"
 
 # Set up data volumes
-RUN mkdir -p /config /downloads /etc/elixir_tzdata_data /etc/yt-dlp/plugins && \
-  chmod ugo+rw /etc/elixir_tzdata_data /etc/yt-dlp /etc/yt-dlp/plugins /usr/local/bin /usr/local/bin/yt-dlp
-
-# Bake in the bgutil POT provider yt-dlp plugin so PO-token support is "one and done":
-# if the user runs the bgutil HTTP sidecar, tokens flow with no manual plugin install;
-# if they don't, the plugin sits idle and the app is unaffected. The app only passes
-# --plugin-dirs when this directory is non-empty (see CommandRunner.plugin_dir_options/0),
-# so this bake-in is what makes the dir non-empty on a stock image.
-# The release zip extracts directly to: yt_dlp_plugins/extractor/*.py (no top-level subdirectory)
-RUN curl -L "https://github.com/Brainicism/bgutil-ytdlp-pot-provider/releases/download/${BGUTIL_PLUGIN_VERSION}/bgutil-ytdlp-pot-provider.zip" \
-      -o /tmp/bgutil-plugin.zip && \
-    unzip -o /tmp/bgutil-plugin.zip -d /etc/yt-dlp/plugins && \
-    rm -f /tmp/bgutil-plugin.zip && \
-    test -d "/etc/yt-dlp/plugins/yt_dlp_plugins/extractor" && \
-    chmod -R ugo+rX /etc/yt-dlp/plugins
+RUN mkdir -p /config /downloads /backups /etc/elixir_tzdata_data /etc/yt-dlp/plugins && \ 
+  chmod ugo+rw /etc/elixir_tzdata_data /etc/yt-dlp /etc/yt-dlp/plugins /usr/local/bin /usr/local/bin/yt-dlp /backups
 
 # set runner ENV
 ENV MIX_ENV="prod"

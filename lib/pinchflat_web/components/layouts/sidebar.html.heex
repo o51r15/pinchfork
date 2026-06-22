@@ -8,7 +8,7 @@
 >
   <section>
     <div class="flex items-center justify-between gap-2 px-6 py-4">
-      <a href={~p"/"} class="flex items-center">
+      <a href={~p"/sources"} class="flex items-center">
         <img src={~p"/images/pinchfork-logo.png"} alt="Pinchfork" class="w-auto" />
       </a>
 
@@ -21,6 +21,7 @@
         <div class="flex flex-col justify-between">
           <ul class="mb-6 flex flex-col gap-1.5">
             <.sidebar_item icon="hero-tv" text="Sources" href={~p"/sources"} />
+            <.sidebar_item icon="hero-chart-bar" text="Stats" href={~p"/stats"} />
             <.sidebar_item icon="hero-queue-list" text="Activity" href={~p"/activity"} />
             <.sidebar_item icon="hero-magnifying-glass" text="Search" href={~p"/search"} />
             <.sidebar_submenu

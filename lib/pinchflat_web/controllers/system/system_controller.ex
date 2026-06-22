@@ -99,7 +99,47 @@ defmodule PinchflatWeb.System.SystemController do
   end
 
   def backup(conn, _params) do
-    render(conn, :backup)
+    render(conn, :backup, backups: Pinchflat.Backups.list_backups())
+  end
+
+  def create_backup(conn, _params) do
+    case Pinchflat.Backups.create_backup() do
+      {:ok, filename} ->
+        conn
+        |> put_flash(:info, "Backup created: #{filename}")
+        |> redirect(to: ~p"/system/backup")
+
+      {:error, reason} ->
+        conn
+        |> put_flash(:error, "Backup failed: #{reason}")
+        |> redirect(to: ~p"/system/backup")
+    end
+  end
+
+  def download_backup(conn, %{"filename" => filename}) do
+    case Pinchflat.Backups.backup_path(filename) do
+      nil ->
+        conn
+        |> put_flash(:error, "Backup file not found.")
+        |> redirect(to: ~p"/system/backup")
+
+      filepath ->
+        send_download(conn, {:file, filepath}, filename: Path.basename(filepath))
+    end
+  end
+
+  def delete_backup(conn, %{"filename" => filename}) do
+    case Pinchflat.Backups.delete_backup(filename) do
+      :ok ->
+        conn
+        |> put_flash(:info, "Backup deleted.")
+        |> redirect(to: ~p"/system/backup")
+
+      {:error, _} ->
+        conn
+        |> put_flash(:error, "Could not delete backup.")
+        |> redirect(to: ~p"/system/backup")
+    end
   end
 
   def updates(conn, _params) do

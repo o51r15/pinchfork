@@ -15,24 +15,23 @@ defmodule PinchflatWeb.Pages.PageController do
     if force_onboarding || Settings.get!(:onboarding) do
       render_onboarding_page(conn)
     else
-      render_home_page(conn)
+      redirect(conn, to: ~p"/sources")
     end
   end
 
-  def activity(conn, _params) do
-    render(conn, :activity)
-  end
-
-  defp render_home_page(conn) do
+  def stats(conn, _params) do
     downloaded_media_items = where(MediaQuery.new(), ^MediaQuery.downloaded())
 
-    conn
-    |> render(:home,
+    render(conn, :stats,
       media_profile_count: Repo.aggregate(MediaProfile, :count, :id),
       source_count: Repo.aggregate(Source, :count, :id),
       media_item_size: Repo.aggregate(downloaded_media_items, :sum, :media_size_bytes),
       media_item_count: Repo.aggregate(downloaded_media_items, :count, :id)
     )
+  end
+
+  def activity(conn, _params) do
+    render(conn, :activity)
   end
 
   defp render_onboarding_page(conn) do
