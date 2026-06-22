@@ -1,6 +1,5 @@
-<%!-- SONARR-STYLE HEADER: fanart banner + poster overlay + title + actions --%>
+<%!-- SONARR-STYLE HEADER: fanart banner + poster overlay + title --%>
 <div class="relative mb-4 rounded-lg overflow-hidden">
-  <%!-- Fanart background --%>
   <div class="h-48 md:h-64 w-full">
     <img
       src={~p"/sources/#{@source.id}/fanart"}
@@ -10,16 +9,13 @@
     <div class="absolute inset-0 bg-gradient-to-t from-black via-black/60 to-black/20"></div>
   </div>
 
-  <%!-- Back arrow — top left --%>
   <div class="absolute top-3 left-3">
     <.link href={~p"/sources"}>
       <.icon name="hero-arrow-left" class="w-8 h-8 text-white drop-shadow" />
     </.link>
   </div>
 
-  <%!-- Poster + title anchored to bottom of banner --%>
   <div class="absolute bottom-0 left-0 right-0 p-4 flex items-end gap-4">
-    <%!-- Poster --%>
     <div class="hidden sm:block flex-shrink-0 w-24 rounded-lg overflow-hidden shadow-2xl" style="aspect-ratio: 2/3;">
       <img
         src={~p"/sources/#{@source.id}/poster"}
@@ -27,12 +23,8 @@
         class="w-full h-full object-cover"
       />
     </div>
-
-    <%!-- Title + meta --%>
     <div class="flex-1 min-w-0">
-      <h2 class="text-2xl font-bold text-white truncate drop-shadow">
-        {@source.custom_name}
-      </h2>
+      <h2 class="text-2xl font-bold text-white truncate drop-shadow">{@source.custom_name}</h2>
       <p class="text-sm text-gray-300 capitalize">
         {@source.collection_type} &bull; {@source.media_profile.name}
       </p>
@@ -65,53 +57,50 @@
     <p class="text-xs text-gray-400 uppercase tracking-wide">Pending</p>
   </div>
   <div>
-    <p class="text-xl font-bold text-gray-400"><.localized_number number={@counts.total - @counts.downloaded - @counts.pending} /></p>
+    <p class="text-xl font-bold text-gray-400">
+      <.localized_number number={@counts.total - @counts.downloaded - @counts.pending} />
+    </p>
     <p class="text-xs text-gray-400 uppercase tracking-wide">Other</p>
   </div>
 </div>
 
-<%!-- TABS --%>
-<div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
-  <div class="max-w-full">
-    <.tabbed_layout>
-      <:tab title="Pending" id="pending">
-        {live_render(
-          @conn,
-          PinchflatWeb.Sources.MediaItemTableLive,
-          session: %{"source_id" => @source.id, "media_state" => "pending"}
-        )}
-      </:tab>
-      <:tab title="Downloaded" id="downloaded">
-        {live_render(
-          @conn,
-          PinchflatWeb.Sources.MediaItemTableLive,
-          session: %{"source_id" => @source.id, "media_state" => "downloaded"}
-        )}
-      </:tab>
-      <:tab title="Other" id="other">
-        {live_render(
-          @conn,
-          PinchflatWeb.Sources.MediaItemTableLive,
-          session: %{"source_id" => @source.id, "media_state" => "other"}
-        )}
-      </:tab>
-      <:tab title="Jobs" id="jobs">
-        <%= if match?([_|_], @pending_tasks) do %>
-          <.table rows={@pending_tasks} table_class="text-black dark:text-white">
-            <:col :let={task} label="Job">
-              {task.job.worker |> String.split(".") |> List.last() |> Macro.underscore() |> String.replace("_", " ") |> String.capitalize()}
-            </:col>
-            <:col :let={task} label="State">
-              {task.job.state}
-            </:col>
-            <:col :let={task} label="Scheduled At">
-              <.datetime_in_zone datetime={task.job.scheduled_at} />
-            </:col>
-          </.table>
-        <% else %>
-          <p>No active jobs.</p>
-        <% end %>
-      </:tab>
-    </.tabbed_layout>
+<%!-- YEAR GROUP EPISODE LIST --%>
+{live_render(
+  @conn,
+  PinchflatWeb.Sources.YearGroupLive,
+  session: %{"source_id" => @source.id}
+)}
+
+<%!-- JOBS — collapsible section --%>
+<div class="mt-6 rounded-sm border border-strokedark dark:bg-boxdark" x-data="{ open: false }">
+  <button
+    class="w-full flex items-center justify-between px-5 py-3 text-left"
+    x-on:click="open = !open"
+  >
+    <span class="font-medium text-white">Active Jobs</span>
+    <.icon
+      name="hero-chevron-down"
+      class="w-4 h-4 text-gray-400 transition-transform duration-200"
+      x-bind:class="open ? 'rotate-180' : ''"
+    />
+  </button>
+  <div x-show="open">
+    <div class="px-5 pb-5">
+      <%= if match?([_|_], @pending_tasks) do %>
+        <.table rows={@pending_tasks} table_class="text-black dark:text-white">
+          <:col :let={task} label="Job">
+            {task.job.worker |> String.split(".") |> List.last() |> Macro.underscore() |> String.replace("_", " ") |> String.capitalize()}
+          </:col>
+          <:col :let={task} label="State">
+            {task.job.state}
+          </:col>
+          <:col :let={task} label="Scheduled At">
+            <.datetime_in_zone datetime={task.job.scheduled_at} />
+          </:col>
+        </.table>
+      <% else %>
+        <p class="text-gray-400 text-sm">No active jobs.</p>
+      <% end %>
+    </div>
   </div>
 </div>

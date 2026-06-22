@@ -1,6 +1,7 @@
 defmodule PinchflatWeb.Sources.SourceController do
   use PinchflatWeb, :controller
   use Pinchflat.Sources.SourcesQuery
+  use Pinchflat.Media.MediaQuery
 
   alias Pinchflat.Repo
   alias Pinchflat.Tasks
@@ -162,16 +163,27 @@ defmodule PinchflatWeb.Sources.SourceController do
       |> Tasks.list_tasks_for(nil, [:executing, :available, :scheduled, :retryable])
       |> Repo.preload(:job)
 
-    counts =
+    base_stats =
       from(mi in MediaItem,
         where: mi.source_id == ^source.id,
         select: %{
           total: count(mi.id),
-          downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath)),
-          pending: count(fragment("CASE WHEN ? IS NULL AND ? = false THEN 1 END", mi.media_filepath, mi.prevent_download))
+          downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath))
         }
       )
       |> Repo.one()
+
+    # Use the full staged_pending logic (joins through source → media_profile) so that
+    # shorts, livestreams, members-only content, and cutoff-date items are NOT counted
+    # as pending in the stats bar.
+    pending_count =
+      MediaQuery.new()
+      |> MediaQuery.require_assoc(:media_profile)
+      |> where(^MediaQuery.for_source(source))
+      |> where(^dynamic(^MediaQuery.staged_pending()))
+      |> Repo.aggregate(:count, :id)
+
+    counts = Map.put(base_stats, :pending, pending_count)
 
     render(conn, :show, source: source, pending_tasks: pending_tasks, counts: counts)
   end

@@ -1,0 +1,125 @@
+<div class="mb-6">
+  <h2 class="text-title-md2 font-bold text-white">System Status</h2>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+  <%!-- About --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">About</h3>
+    <table class="w-full text-sm">
+      <tbody>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400 w-1/2">Pinchfork</td>
+          <td class="py-2 text-white font-mono">v{@about.pinchfork_version}</td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Pinchflat upstream</td>
+          <td class="py-2 text-white font-mono">{@about.pinchflat_upstream}</td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Elixir</td>
+          <td class="py-2 text-white font-mono">{@about.elixir_version}</td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">OTP</td>
+          <td class="py-2 text-white font-mono">{@about.otp_version}</td>
+        </tr>
+        <tr>
+          <td class="py-2 text-gray-400">yt-dlp</td>
+          <td class="py-2 text-white font-mono">{@about.yt_dlp_version}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="mt-4">
+      <.button
+        color="bg-meta-4 hover:bg-meta-3"
+        rounding="rounded-lg"
+        x-data="{ copied: false }"
+        x-on:click={"copyWithCallbacks(`#{@diagnostic_info}`, () => copied = true, () => copied = false)"}
+      >
+        Copy Diagnostic Info
+        <span x-show="copied" x-transition.duration.150ms>
+          <.icon name="hero-check" class="ml-2 h-4 w-4" />
+        </span>
+      </.button>
+    </div>
+  </div>
+
+  <%!-- Database --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">Database</h3>
+    <table class="w-full text-sm">
+      <tbody>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400 w-1/2">Status</td>
+          <td class="py-2">
+            <span class="inline-flex items-center gap-1.5 text-green-400">
+              <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+              Connected
+            </span>
+          </td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Version</td>
+          <td class="py-2 text-white font-mono">{@pg_version}</td>
+        </tr>
+        <tr>
+          <td class="py-2 text-gray-400">Size</td>
+          <td class="py-2 text-white font-mono">{@db_size}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <%!-- Queue Health --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">Queue Health</h3>
+    <table class="w-full text-sm">
+      <tbody>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400 w-1/2">Executing</td>
+          <td class="py-2 text-white font-mono">
+            <.localized_number number={Map.get(@queue_counts, "executing", 0)} />
+          </td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Pending</td>
+          <td class="py-2 text-white font-mono">
+            <.localized_number number={Map.get(@queue_counts, "available", 0) + Map.get(@queue_counts, "scheduled", 0)} />
+          </td>
+        </tr>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400">Retrying</td>
+          <td class="py-2 text-white font-mono">
+            <.localized_number number={Map.get(@queue_counts, "retryable", 0)} />
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 text-gray-400">Discarded</td>
+          <td class="py-2">
+            <span class={if Map.get(@queue_counts, "discarded", 0) > 0, do: "text-red-400 font-mono", else: "text-white font-mono"}>
+              <.localized_number number={Map.get(@queue_counts, "discarded", 0)} />
+            </span>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <%!-- Logs --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">Logs</h3>
+    <p class="text-sm text-gray-400 mb-4">
+      Download the application log file for troubleshooting. Contains yt-dlp output,
+      download events, and error details.
+    </p>
+    <.link href={~p"/system/logs"}>
+      <.button color="bg-meta-4 hover:bg-meta-3" rounding="rounded-lg">
+        <.icon name="hero-arrow-down-tray" class="mr-2 h-4 w-4" />
+        Download Log File
+      </.button>
+    </.link>
+  </div>
+
+</div>
