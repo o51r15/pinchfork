@@ -122,4 +122,41 @@
     </.link>
   </div>
 
+  <%!-- PO Token Server --%>
+  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <h3 class="text-lg font-semibold text-white mb-4">PO Token Server</h3>
+    <table class="w-full text-sm">
+      <tbody>
+        <tr class="border-b border-strokedark">
+          <td class="py-2 text-gray-400 w-1/2">Status</td>
+          <td class="py-2">
+            <%= if @po_token_status == :up do %>
+              <span class="inline-flex items-center gap-1.5 text-green-400">
+                <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span>
+                Up
+              </span>
+            <% else %>
+              <span class="inline-flex items-center gap-1.5 text-red-400">
+                <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span>
+                Down
+              </span>
+            <% end %>
+          </td>
+        </tr>
+        <tr>
+          <td class="py-2 text-gray-400">Container</td>
+          <td class="py-2 text-white font-mono text-xs">bgutil-provider:4416</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="mt-4">
+      <.link href={~p"/system/test_po_token"} method="post">
+        <.button color="bg-meta-4 hover:bg-meta-3" rounding="rounded-lg">
+          <.icon name="hero-bolt" class="mr-2 h-4 w-4" />
+          Test Token Server
+        </.button>
+      </.link>
+    </div>
+  </div>
+
 </div>

@@ -23,7 +23,24 @@ defmodule PinchflatWeb.Sources.SourceController do
       )
       |> Repo.all()
 
-    render(conn, :index, sources: sources)
+    source_ids = Enum.map(sources, & &1.id)
+
+    counts_by_source =
+      from(mi in MediaItem,
+        where: mi.source_id in ^source_ids,
+        group_by: mi.source_id,
+        select: {
+          mi.source_id,
+          %{
+            total: count(mi.id),
+            downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath))
+          }
+        }
+      )
+      |> Repo.all()
+      |> Map.new()
+
+    render(conn, :index, sources: sources, counts_by_source: counts_by_source)
   end
 
   # Serves the poster image for a source. Falls back to an SVG placeholder
@@ -168,7 +185,17 @@ defmodule PinchflatWeb.Sources.SourceController do
         where: mi.source_id == ^source.id,
         select: %{
           total: count(mi.id),
-          downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath))
+          downloaded: count(fragment("CASE WHEN ? IS NOT NULL THEN 1 END", mi.media_filepath)),
+          # Permanently failed items also have prevent_download = true, so exclude them from
+          # the prevented count to avoid double-counting across the two buckets.
+          failed: count(fragment("CASE WHEN ?::text = 'permanent' THEN 1 END", mi.error_type)),
+          # Only count items the USER explicitly prevented — manual eye-off or user script.
+          # Policy-stamped items (policy_members, policy_public, etc.) are system-driven and
+          # belong in the skipped bucket, not here.
+          prevented: count(fragment("CASE WHEN ?::text IN ('manual', 'user_script') THEN 1 END", mi.download_prevented_reason)),
+          # Retrying items have a transient error but are not yet downloaded or prevented.
+          # We track them so they can be subtracted when computing the skipped remainder.
+          retrying: count(fragment("CASE WHEN ?::text = 'transient' AND ? IS NULL AND ? = false THEN 1 END", mi.error_type, mi.media_filepath, mi.prevent_download))
         }
       )
       |> Repo.one()
@@ -183,7 +210,17 @@ defmodule PinchflatWeb.Sources.SourceController do
       |> where(^dynamic(^MediaQuery.staged_pending()))
       |> Repo.aggregate(:count, :id)
 
-    counts = Map.put(base_stats, :pending, pending_count)
+    # Skipped = items the system filtered out (shorts, live, members-only, cutoff, duration,
+    # regex) — evaluated dynamically by staged_pending/0 so not stamped on the row.
+    # Computed as the arithmetic remainder after all other known states are subtracted.
+    skipped =
+      base_stats.total - base_stats.downloaded - pending_count -
+        base_stats.failed - base_stats.prevented - base_stats.retrying
+
+    counts =
+      base_stats
+      |> Map.put(:pending, pending_count)
+      |> Map.put(:skipped, skipped)
 
     render(conn, :show, source: source, pending_tasks: pending_tasks, counts: counts)
   end

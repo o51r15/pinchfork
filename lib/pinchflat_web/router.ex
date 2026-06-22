@@ -43,6 +43,7 @@ defmodule PinchflatWeb.Router do
     pipe_through :browser
 
     get "/", Pages.PageController, :home
+    get "/activity", Pages.PageController, :activity
 
     resources "/media_profiles", MediaProfiles.MediaProfileController
     resources "/search", Searches.SearchController, only: [:show], singleton: true
@@ -52,6 +53,7 @@ defmodule PinchflatWeb.Router do
     get "/download_logs", Settings.SettingController, :download_logs
 
     get "/system/status", System.SystemController, :status
+    post "/system/test_po_token", System.SystemController, :test_po_token
     get "/system/logs", Settings.SettingController, :download_logs
     get "/system/backup", System.SystemController, :backup
     get "/system/updates", System.SystemController, :updates
@@ -60,7 +62,9 @@ defmodule PinchflatWeb.Router do
     get "/sources/:id/poster", Sources.SourceController, :poster
     get "/sources/:id/fanart", Sources.SourceController, :fanart
 
-    resources "/sources", Sources.SourceController do
+    live "/sources", Sources.SourceIndexLive, :index
+
+    resources "/sources", Sources.SourceController, except: [:index] do
       post "/force_download_pending", Sources.SourceController, :force_download_pending
       post "/force_redownload", Sources.SourceController, :force_redownload
       post "/force_index", Sources.SourceController, :force_index

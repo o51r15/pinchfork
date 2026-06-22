@@ -19,6 +19,10 @@ defmodule PinchflatWeb.Pages.PageController do
     end
   end
 
+  def activity(conn, _params) do
+    render(conn, :activity)
+  end
+
   defp render_home_page(conn) do
     downloaded_media_items = where(MediaQuery.new(), ^MediaQuery.downloaded())
 

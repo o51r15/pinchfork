@@ -1,8 +1,9 @@
 <div class="flex h-screen overflow-hidden">
-  <.sidebar conn={@conn} />
+  <% current_path = if assigns[:conn], do: Phoenix.Controller.current_path(assigns.conn), else: assigns[:current_path] || "" %>
+  <.sidebar current_path={current_path} />
 
   <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-    <.header params={@conn.params} />
+    <.header params={if assigns[:conn], do: assigns.conn.params, else: %{}} />
     <main>
       <div class="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
         <.flash_group flash={@flash} />

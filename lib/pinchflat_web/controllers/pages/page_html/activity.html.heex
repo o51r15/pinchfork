@@ -1,0 +1,39 @@
+<div class="mb-6">
+  <h2 class="text-title-md2 font-bold text-black dark:text-white">Activity</h2>
+</div>
+
+<div class="rounded-sm border shadow-default border-strokedark bg-boxdark p-5">
+  <.tabbed_layout>
+    <:tab title="Downloaded" id="downloaded">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "downloaded"}
+      )}
+    </:tab>
+    <:tab title="Pending" id="pending">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "pending"}
+      )}
+    </:tab>
+    <:tab title="Retry" id="retry">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "retry"}
+      )}
+    </:tab>
+    <:tab title="Failed" id="failed">
+      {live_render(
+        @conn,
+        Pinchflat.Pages.HistoryTableLive,
+        session: %{"media_state" => "failed"}
+      )}
+    </:tab>
+    <:tab title="Active Tasks" id="active-tasks">
+      {live_render(@conn, Pinchflat.Pages.JobTableLive)}
+    </:tab>
+  </.tabbed_layout>
+</div>

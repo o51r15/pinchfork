@@ -1,0 +1,78 @@
+<aside
+  x-bind:class="sidebarVisible ? 'translate-x-0' : '-translate-x-full'"
+  class={[
+    "-translate-x-full absolute left-0 top-0 z-9999 flex h-screen w-65 flex-col overflow-y-hidden justify-between",
+    "bg-black duration-300 ease-linear shadow-lg sm:shadow-none dark:bg-boxdark lg:static lg:translate-x-0"
+  ]}
+  @click.outside="sidebarVisible = false"
+>
+  <section>
+    <div class="flex items-center justify-between gap-2 px-6 py-4">
+      <a href={~p"/"} class="flex items-center">
+        <img src={~p"/images/pinchfork-logo.png"} alt="Pinchfork" class="w-auto" />
+      </a>
+
+      <button class="block mt-3 lg:hidden" @click.stop="sidebarVisible = !sidebarVisible">
+        <.icon name="hero-arrow-left" class="fill-current" />
+      </button>
+    </div>
+    <div class="no-scrollbar flex flex-col overflow-y-auto duration-300 ease-linear">
+      <nav class="mt-3 px-4 py-4 lg:px-6">
+        <div class="flex flex-col justify-between">
+          <ul class="mb-6 flex flex-col gap-1.5">
+            <.sidebar_item icon="hero-tv" text="Sources" href={~p"/sources"} />
+            <.sidebar_item icon="hero-queue-list" text="Activity" href={~p"/activity"} />
+            <.sidebar_item icon="hero-magnifying-glass" text="Search" href={~p"/search"} />
+            <.sidebar_submenu
+              icon="hero-cog-6-tooth"
+              text="Settings"
+              current_path={@current_path}
+            >
+              <:submenu text="General" href={~p"/settings"} />
+              <:submenu text="Media Profiles" href={~p"/media_profiles"} />
+            </.sidebar_submenu>
+            <.sidebar_submenu
+              icon="hero-server-stack"
+              text="System"
+              current_path={@current_path}
+            >
+              <:submenu text="Status" href={~p"/system/status"} />
+              <:submenu text="Logs" href={~p"/system/logs"} />
+              <:submenu text="Backup" href={~p"/system/backup"} />
+              <:submenu text="Updates" href={~p"/system/updates"} />
+            </.sidebar_submenu>
+          </ul>
+        </div>
+      </nav>
+    </div>
+  </section>
+  <section>
+    <nav class="px-4 py-4 lg:px-6">
+      <ul class="mb-6 flex flex-col gap-1.5">
+        <.sidebar_item
+          icon="hero-book-open"
+          text="Docs"
+          target="_blank"
+          href="https://github.com/o51r15/pinchfork/wiki"
+          icon_class="scale-110"
+        />
+        <.sidebar_item icon="si-github" text="Github" target="_blank" href="https://github.com/o51r15/pinchfork" />
+        <li>
+          <span class="group relative flex items-center gap-2.5 px-4 pt-2 text-sm">
+            <a href="https://github.com/kieraneglin/pinchflat/releases" target="_blank" class="hover:underline">
+              Pinchflat 2025.9.26
+            </a>
+          </span>
+          <span class="group relative flex items-center gap-2.5 px-4 pt-2 text-sm">
+            <a href="https://github.com/o51r15/pinchfork/releases" target="_blank" class="hover:underline">
+              Pinchfork v{Application.spec(:pinchflat)[:vsn]}
+            </a>
+          </span>
+          <span class="group relative flex items-center gap-2.5 px-4 pt-2 text-sm">
+            yt-dlp {Settings.get!(:yt_dlp_version)}
+          </span>
+        </li>
+      </ul>
+    </nav>
+  </section>
+</aside>

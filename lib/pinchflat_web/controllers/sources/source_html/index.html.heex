@@ -32,6 +32,8 @@
 <% else %>
   <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
     <%= for source <- @sources do %>
+      <% counts = Map.get(@counts_by_source, source.id, %{total: 0, downloaded: 0}) %>
+      <% pct = if counts.total > 0, do: round(counts.downloaded / counts.total * 100), else: 0 %>
       <div class="group">
         <%!-- Poster — links to source show page --%>
         <.link href={~p"/sources/#{source.id}"}>
@@ -42,6 +44,10 @@
               class="w-full h-full object-cover transition-opacity duration-200 group-hover:opacity-75"
               loading="lazy"
             />
+            <%!-- Progress bar — green fill over dark grey track at bottom of poster --%>
+            <div class="absolute bottom-0 left-0 right-0 h-1.5 bg-gray-800">
+              <div class="h-full bg-green-500 transition-all duration-300" style={"width: #{pct}%"}></div>
+            </div>
           </div>
         </.link>
 
