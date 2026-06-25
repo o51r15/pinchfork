@@ -1,0 +1,132 @@
+<div class="mb-6 flex gap-3 flex-row items-center">
+  <.link href={~p"/sources/#{@source}"}>
+    <.icon name="hero-arrow-left" class="w-10 h-10 hover:dark:text-white" />
+  </.link>
+  <h2 class="text-title-md2 font-bold text-black dark:text-white ml-4">Edit Metadata — {@source.custom_name}</h2>
+</div>
+
+<div
+  class="rounded-sm border border-stroke bg-white px-5 pb-6 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5"
+  x-data="{ tab: 'general' }"
+>
+  <%!-- Tab headers --%>
+  <div class="flex border-b border-strokedark mb-6">
+    <button
+      x-on:click="tab = 'general'"
+      x-bind:class="tab === 'general' ? 'border-b-2 border-primary text-primary' : 'text-gray-400 hover:text-white'"
+      class="px-4 py-2 text-sm font-medium transition-colors"
+    >General</button>
+    <button
+      x-on:click="tab = 'poster'"
+      x-bind:class="tab === 'poster' ? 'border-b-2 border-primary text-primary' : 'text-gray-400 hover:text-white'"
+      class="px-4 py-2 text-sm font-medium transition-colors"
+    >Poster</button>
+  </div>
+
+  <%!-- GENERAL TAB --%>
+  <div x-show="tab === 'general'">
+    <.simple_form
+      :let={f}
+      for={@changeset}
+      action={~p"/sources/#{@source}/edit_metadata"}
+      method="post"
+    >
+      <.error :if={@changeset.action}>
+        Oops, something went wrong! Please check the errors below.
+      </.error>
+
+      <%!-- Name + lock --%>
+      <div class="flex items-end gap-3">
+        <div class="flex-1">
+          <.input field={f[:custom_name]} type="text" label="Name" />
+        </div>
+        <div class="mb-5 flex items-center gap-2">
+          <.input
+            field={f[:custom_name_locked]}
+            type="toggle"
+            label="Lock"
+            label_suffix=" (prevents metadata refresh overwrite)"
+          />
+        </div>
+      </div>
+
+      <%!-- Description + lock --%>
+      <div class="flex items-end gap-3">
+        <div class="flex-1">
+          <.input field={f[:description]} type="textarea" label="Description" />
+        </div>
+        <div class="mb-5 flex items-center gap-2">
+          <.input
+            field={f[:description_locked]}
+            type="toggle"
+            label="Lock"
+            label_suffix=" (prevents metadata refresh overwrite)"
+          />
+        </div>
+      </div>
+
+      <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Save Changes</.button>
+    </.simple_form>
+  </div>
+
+  <%!-- POSTER TAB --%>
+  <div x-show="tab === 'poster'" x-cloak>
+
+    <%!-- Current poster --%>
+    <div class="mb-6 flex items-start gap-6">
+      <div class="w-32 rounded-lg overflow-hidden shadow-lg flex-shrink-0" style="aspect-ratio: 2/3;">
+        <img
+          src={~p"/sources/#{@source.id}/poster"}
+          alt={@source.custom_name}
+          class="w-full h-full object-cover"
+        />
+      </div>
+      <div>
+        <p class="text-white font-medium mb-1">Current Poster</p>
+        <%= if @source.custom_poster_filepath do %>
+          <p class="text-xs text-primary mb-3">🔒 Custom poster — locked until removed</p>
+          <.link
+            href={~p"/sources/#{@source}/custom_poster"}
+            method="delete"
+            data-confirm="Remove custom poster and revert to auto-fetched image?"
+            class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-red-700 bg-red-900 hover:bg-red-800 text-white transition-colors"
+          >
+            <.icon name="hero-trash" class="w-4 h-4" /> Remove Custom Poster
+          </.link>
+        <% else %>
+          <p class="text-xs text-gray-400 mb-3">Auto-fetched from YouTube. Upload a custom poster to override.</p>
+        <% end %>
+      </div>
+    </div>
+
+    <%!-- Upload form --%>
+    <div class="border border-strokedark rounded-lg p-5 mb-4">
+      <h3 class="text-white font-medium mb-4">Upload Image</h3>
+      <.form
+        :let={f}
+        for={%{}}
+        action={~p"/sources/#{@source}/custom_poster"}
+        method="post"
+        multipart={true}
+      >
+        <.input field={f[:upload]} name="poster[upload]" type="file" label="Choose file" />
+        <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Upload Poster</.button>
+      </.form>
+    </div>
+
+    <%!-- URL form --%>
+    <div class="border border-strokedark rounded-lg p-5">
+      <h3 class="text-white font-medium mb-4">Use Image URL</h3>
+      <.form
+        :let={f}
+        for={%{}}
+        action={~p"/sources/#{@source}/custom_poster"}
+        method="post"
+      >
+        <.input field={f[:url]} name="poster[url]" type="text" label="Image URL" placeholder="https://..." />
+        <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Set from URL</.button>
+      </.form>
+    </div>
+
+  </div>
+</div>

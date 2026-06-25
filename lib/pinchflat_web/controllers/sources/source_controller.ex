@@ -43,13 +43,14 @@ defmodule PinchflatWeb.Sources.SourceController do
     render(conn, :index, sources: sources, counts_by_source: counts_by_source)
   end
 
-  # Serves the poster image for a source. Falls back to an SVG placeholder
-  # with the source's initial when no poster file exists on disk.
+  # Serves the poster image for a source. Custom poster takes priority,
+  # then falls back to auto-fetched poster, metadata poster, or SVG placeholder.
   def poster(conn, %{"id" => id}) do
     source = Sources.get_source!(id)
 
     poster_path =
-      source.poster_filepath ||
+      source.custom_poster_filepath ||
+        source.poster_filepath ||
         case Repo.preload(source, :metadata) do
           %{metadata: %{poster_filepath: path}} when not is_nil(path) -> path
           _ -> nil
@@ -306,6 +307,77 @@ defmodule PinchflatWeb.Sources.SourceController do
       "File sync enqueued.",
       &FileSyncingWorker.kickoff_with_task/1
     )
+  end
+
+  def edit_metadata(conn, %{"source_id" => id}) do
+    source = Sources.get_source!(id)
+    changeset = Sources.change_source(source)
+    render(conn, :edit_metadata, source: source, changeset: changeset)
+  end
+
+  def update_metadata(conn, %{"source_id" => id, "source" => params}) do
+    source = Sources.get_source!(id)
+    allowed = Map.take(params, ["custom_name", "custom_name_locked", "description", "description_locked"])
+
+    case Sources.update_source(source, allowed, run_post_commit_tasks: false) do
+      {:ok, source} ->
+        conn
+        |> put_flash(:info, "Metadata updated.")
+        |> redirect(to: ~p"/sources/#{source}")
+
+      {:error, changeset} ->
+        render(conn, :edit_metadata, source: source, changeset: changeset)
+    end
+  end
+
+  def upload_custom_poster(conn, %{"source_id" => id} = params) do
+    source = Sources.get_source!(id)
+    metadata_dir = Pinchflat.Metadata.MetadataFileHelpers.metadata_directory_for(source)
+    File.mkdir_p!(metadata_dir)
+    dest_path = Path.join(metadata_dir, "custom_poster.jpg")
+
+    result =
+      cond do
+        upload = get_in(params, ["poster", "upload"]) ->
+          File.cp!(upload.path, dest_path)
+          {:ok, dest_path}
+
+        url = get_in(params, ["poster", "url"]) when url != "" ->
+          case Pinchflat.HTTP.HTTPClient.get(url) do
+            {:ok, %{body: body}} ->
+              File.write!(dest_path, body)
+              {:ok, dest_path}
+            _ ->
+              {:error, "Could not fetch image from URL"}
+          end
+
+        true ->
+          {:error, "No image provided"}
+      end
+
+    case result do
+      {:ok, path} ->
+        Sources.update_source(source, %{custom_poster_filepath: path}, run_post_commit_tasks: false)
+        conn |> put_flash(:info, "Custom poster saved.") |> redirect(to: ~p"/sources/#{source}/edit_metadata")
+
+      {:error, msg} ->
+        changeset = Sources.change_source(source)
+        conn |> put_flash(:error, msg) |> render(:edit_metadata, source: source, changeset: changeset)
+    end
+  end
+
+  def delete_custom_poster(conn, %{"source_id" => id}) do
+    source = Sources.get_source!(id)
+
+    if source.custom_poster_filepath && File.exists?(source.custom_poster_filepath) do
+      File.rm(source.custom_poster_filepath)
+    end
+
+    Sources.update_source(source, %{custom_poster_filepath: nil}, run_post_commit_tasks: false)
+
+    conn
+    |> put_flash(:info, "Custom poster removed.")
+    |> redirect(to: ~p"/sources/#{source}/edit_metadata")
   end
 
   defp wrap_forced_action(conn, source_id, message, fun) do

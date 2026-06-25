@@ -74,6 +74,10 @@ defmodule PinchflatWeb.Router do
       post "/force_index", Sources.SourceController, :force_index
       post "/force_metadata_refresh", Sources.SourceController, :force_metadata_refresh
       post "/sync_files_on_disk", Sources.SourceController, :sync_files_on_disk
+      get "/edit_metadata", Sources.SourceController, :edit_metadata
+      post "/edit_metadata", Sources.SourceController, :update_metadata
+      post "/custom_poster", Sources.SourceController, :upload_custom_poster
+      delete "/custom_poster", Sources.SourceController, :delete_custom_poster
 
       resources "/media", MediaItems.MediaItemController, only: [:show, :edit, :update, :delete] do
         post "/force_download", MediaItems.MediaItemController, :force_download

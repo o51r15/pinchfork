@@ -74,6 +74,14 @@
     <.icon name="hero-photo" class="w-4 h-4" /> Refresh Metadata
   </.link>
 
+  <%!-- Edit Metadata --%>
+  <.link
+    href={~p"/sources/#{@source}/edit_metadata"}
+    class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-strokedark bg-meta-4 hover:bg-meta-3 text-white transition-colors duration-150"
+  >
+    <.icon name="hero-pencil-square" class="w-4 h-4" /> Edit Metadata
+  </.link>
+
   <%!-- Overflow ⋯ — utility and rare actions --%>
   <div class="relative" x-data="{ open: false }" x-on:click.outside="open = false">
     <button

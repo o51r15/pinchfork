@@ -56,9 +56,9 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
         %{
           series_directory: series_directory,
           nfo_filepath: store_source_nfo(source, series_directory, source_metadata),
-          description: source_metadata["description"],
           metadata: Map.merge(%{metadata_filepath: source_metadata_filepath}, metadata_image_attrs)
-        },
+        }
+        |> maybe_put_description(source, source_metadata),
         source_image_attrs
       ),
       # `run_post_commit_tasks: false` prevents this from running in an infinite loop
@@ -135,4 +135,8 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
   defp tmp_directory do
     Application.get_env(:pinchflat, :tmpfile_directory)
   end
+
+  # Only update description from metadata if the user hasn't locked it.
+  defp maybe_put_description(attrs, %{description_locked: true}, _metadata), do: attrs
+  defp maybe_put_description(attrs, _source, metadata), do: Map.put(attrs, :description, metadata["description"])
 end
