@@ -114,7 +114,7 @@ defmodule Pinchflat.YtDlp.MediaCollection do
   Returns {:ok, map()} | {:error, any, ...}.
   """
   def get_source_metadata(source_url, command_opts, addl_opts \\ []) do
-    all_command_opts = [:skip_download, :flat_playlist] ++ command_opts
+    all_command_opts = [:skip_download] ++ command_opts
 
     # Scoped template: includes all fields used downstream (description, thumbnails for
     # avatar/banner, title/id for NFO, extras for stored blob) while explicitly excluding
