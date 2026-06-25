@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-ee512b?style=for-the-badge)](https://github.com/o51r15/pinchflat/blob/master/LICENSE)
 [![Latest Release](https://img.shields.io/github/v/release/o51r15/pinchflat?style=for-the-badge&color=purple)](https://github.com/o51r15/pinchflat/releases)
 
-# Pinchflat (o51r15 fork)
+# Pinchfork
 
 *logo by [@hernandito](https://github.com/hernandito)*
 
@@ -32,61 +32,7 @@
 
 ## Fork Changes
 
-What started as a targeted database swap has grown into a substantial independent rewrite. The fork now diverges from upstream across the backend, UI, and feature set.
-
-### PostgreSQL backend (replaces SQLite)
-
-The original Pinchflat uses SQLite as its database. This fork replaces it with PostgreSQL. The motivation:
-
-- SQLite + Oban (the background job library) is a structural mismatch. Oban was built for Postgres and the SQLite adapter causes write contention under load, query timeouts, and crash loops as library size grows.
-- Postgres handles concurrent job queues (indexing, downloading, metadata, file sync) correctly and without file locking issues.
-- The `JOURNAL_MODE` workaround for network shares is no longer needed.
-
-**What changed in the code:**
-
-- `ecto_sqlite3` dependency replaced with `postgrex`
-- Oban engine changed from `Lite` (SQLite-only) to `Basic` (Postgres native)
-- SQLite-specific SQL in queries and migrations replaced with Postgres equivalents (`IFNULL` → `COALESCE`, `DATETIME()` → interval arithmetic, `date()` → `::date` cast, `regexp_like` → `~`)
-- Full-text search migrated from SQLite FTS5 virtual table to Postgres `tsvector` with a GIN index and trigger-maintained updates
-- Deployment requires a Postgres sidecar container (see installation below)
-
-### UI overhaul (Sonarr-style)
-
-The upstream UI has been significantly redesigned:
-
-- Source library displays as a poster card grid with download progress bars and one-click monitored toggles
-- Source detail pages use a fanart banner, poster overlay, and granular stats bar (Downloaded / Pending / Failed / Prevented / Skipped)
-- Horizontal action bar replaces the dropdown menu
-- Episode list groups by year with collapsible sections, per-item status badges, and monitored toggles
-- Dedicated Activity page replaces the cluttered home dashboard
-- System Status page shows Pinchfork version, yt-dlp version, PostgreSQL stats, Oban queue health, and live PO token server status
-
-### Source management
-
-- **Source type selector** — Channel vs Playlist is now user-selectable on the new source form, overriding yt-dlp's auto-detection which can be unreliable on some architectures
-- **Metadata editor** — Edit source name and description directly with per-field lock toggles to prevent metadata refreshes from overwriting your changes; upload or link a custom poster image
-- **Content availability filtering** — Per-source controls for public videos and members-only videos independently
-- **Cookie behaviour per source** — Granular control over when cookies are used (disabled / when needed / all operations)
-- **Video client override** — Select the yt-dlp player client per source to bypass SABR or work around authentication issues
-- **Download cutoff date presets** — Quick-select common date offsets alongside the manual date field
-
-### Media tracking
-
-- **Error classification** — `error_type` field distinguishes permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits). Permanent failures automatically set `prevent_download: true`.
-- **Prevention reason tracking** — `download_prevented_reason` field distinguishes manual prevention, policy blocks, and error-stops so re-indexing doesn't accidentally re-enable intentionally blocked items
-
-### yt-dlp and reliability
-
-- **PO token support** — Integration with the bgutil sidecar for YouTube PO token generation. Required for reliable downloads on some content.
-- **SABR bypass** — Video client selector allows routing around SABR-corrupted downloads
-- **yt-dlp version management** — `YT_DLP_VERSION` env var controls update behavior: `stable`, `nightly`, `master`, `pinned`/`none`, or a specific version string
-- **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart, automatically re-queuing them after 30 minutes
-- **Metadata reliability fixes** — Scoped yt-dlp output template prevents multi-MB JSON truncation on resource-constrained hosts; graceful error handling prevents metadata failures from causing noisy Oban retries
-
-### Additional features
-
-- **YouTube API key tester** — One-click validation from the Settings page
-- **Local temp staging** — Downloads can stage to a local path before moving to a network share, eliminating partial-file issues on slow mounts
+See [Fork Changes](https://github.com/o51r15/pinchfork/wiki/Fork-Changes) on the wiki for a full breakdown of how this fork differs from upstream Pinchflat.
 
 ---
 
@@ -108,16 +54,22 @@ While you can download individual videos, Pinchflat is best suited for downloadi
 
 - Powerful naming system so content is stored where and how you want it
 - Easy-to-use web interface with presets to get you started right away
+- Sonarr-style UI — source grid, fanart banners, year-grouped episode lists, activity page
 - First-class support for media center apps like Plex, Jellyfin, and Kodi
 - Supports serving RSS feeds to your favourite podcast app
 - Automatically downloads new content from channels and playlists
+- Source type selector — specify Channel or Playlist to override unreliable auto-detection
+- Source metadata editor — edit name and description with lock toggles; upload a custom poster
+- Content availability filtering — independently control public and members-only video downloads
 - Supports downloading audio content
 - Custom rules for handling YouTube Shorts and livestreams
 - Apprise support for notifications
 - Allows automatically redownloading new media after a set period
 - Optionally automatically delete old content
 - Advanced options like setting cutoff dates and filtering by title
-- Can pass cookies to YouTube to download private playlists
+- Can pass cookies to YouTube to download private playlists and members-only content
+- Per-source cookie behaviour and video client override for SABR bypass
+- PO token support via bgutil sidecar for reliable YouTube access
 - SponsorBlock integration
 - Custom `yt-dlp` options support
 - Custom lifecycle scripts (alpha)
@@ -217,46 +169,7 @@ Pinchflat makes heavy use of websockets for real-time updates. Ensure your rever
 
 ## Configuration Differences from Upstream
 
-This fork introduces configuration options and behaviors that differ from or extend the upstream Pinchflat documentation. If you're migrating from upstream or referencing the upstream wiki, note the following.
-
-### Environment Variables (additions)
-
-| Variable | Default | Notes |
-| --- | --- | --- |
-| `DATABASE_URL` | — | **Required.** Postgres connection string: `ecto://user:pass@host/db`. Replaces the SQLite `DATABASE_PATH` variable which does not exist in this fork. |
-| `POOL_SIZE` | `10` | Postgres connection pool size. No equivalent in upstream. |
-| `YT_DLP_VERSION` | `stable` | Controls yt-dlp update behavior. `stable`, `nightly`, `master`, `pinned`/`none` to disable, or a specific version like `2025.12.08`. No equivalent in upstream. |
-
-### Environment Variables (removed)
-
-| Variable | Reason |
-| --- | --- |
-| `DATABASE_PATH` | SQLite-only. Not used in this fork. |
-| `JOURNAL_MODE` | SQLite-only workaround for network shares. Not used in this fork. |
-
-### Oban job queue behavior
-
-This fork uses the `Oban.Engines.Basic` engine (Postgres native) instead of `Oban.Engines.Lite` (SQLite-only). This resolves write contention and crash loops that could occur on the upstream under load.
-
-The `Oban.Plugins.Lifeline` plugin is enabled with a 30-minute rescue window. Any job that gets stuck in `executing` state after a crash or container restart will automatically be moved back to `retryable` and re-queued. Upstream does not include this plugin.
-
-### Source configuration (additions)
-
-Each source has two new fields not present in upstream:
-
-- **Download public videos** (default: on) — controls whether videos with `availability: public` are downloaded.
-- **Download members-only videos** (default: off) — controls whether `subscriber_only`, `premium_only`, and `needs_auth` videos are downloaded. Requires cookies to be configured for the source.
-
-Unlisted and private videos are always skipped regardless of these settings.
-
-### Media item error tracking (additions)
-
-Two new fields on media items not present in upstream:
-
-- **`availability`** — captured from yt-dlp at index time. Values: `public`, `unlisted`, `subscriber_only`, `premium_only`, `needs_auth`, `private`.
-- **`error_type`** — set during download failures. Values: `transient` (will retry), `permanent` (sets `prevent_download: true`, stops retrying).
-
-Permanent failures include: video unavailable, removed, private, members-only, age-restricted, geo-blocked, and premium-only errors.
+For a full breakdown of env vars added/removed, new source and media item fields, and Oban behavior changes, see [Fork Changes — Configuration differences from upstream](https://github.com/o51r15/pinchfork/wiki/Fork-Changes#configuration-differences-from-upstream) on the wiki.
 
 ---
 
