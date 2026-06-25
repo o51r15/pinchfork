@@ -124,7 +124,8 @@ defmodule Pinchflat.YtDlp.MediaCollection do
     action = :get_source_metadata
 
     with {:ok, output} <- backend_runner().run(source_url, action, all_command_opts, output_template, addl_opts),
-         {:ok, parsed_json} <- Phoenix.json_library().decode(output) do
+         last_line <- output |> String.split("\n", trim: true) |> List.last(""),
+         {:ok, parsed_json} <- Phoenix.json_library().decode(last_line) do
       {:ok, parsed_json}
     else
       err -> err
