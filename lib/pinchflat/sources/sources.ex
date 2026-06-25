@@ -225,8 +225,15 @@ defmodule Pinchflat.Sources do
   defp add_source_details_by_collection_type(source, changeset, source_details) do
     %Ecto.Changeset{changes: changes} = changeset
 
+    # Use user-specified collection_type if provided, otherwise auto-detect.
+    # Auto-detection uses playlist_id == channel_id heuristic which can fail on ARM
+    # where yt-dlp returns different IDs for the same YouTube channel handle URL.
+    effective_type =
+      changes[:collection_type] ||
+        if source_details.playlist_id == source_details.channel_id, do: :channel, else: :playlist
+
     collection_changes =
-      if source_details.playlist_id == source_details.channel_id do
+      if effective_type == :channel do
         %{
           collection_type: :channel,
           collection_id: source_details.channel_id,

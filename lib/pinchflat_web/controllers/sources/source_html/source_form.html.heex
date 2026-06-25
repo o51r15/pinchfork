@@ -13,12 +13,39 @@
   <section class="mt-4">
     <h3 class="text-2xl text-white mb-4">General</h3>
 
-    <.input
-      field={f[:original_url]}
-      type="text"
-      label="Source URL"
-      x-init="$el.focus()"
-    />
+    <section x-data={
+      """
+      {
+        sourceType: '#{Phoenix.HTML.Form.input_value(f, :collection_type) || ""}',
+        detectTypeFromUrl(url) {
+          if (url.includes('playlist?list=')) this.sourceType = 'playlist';
+          else if (url.includes('@') || url.includes('/channel/') || url.includes('/c/')) this.sourceType = 'channel';
+        }
+      }
+      """
+    }>
+      <.input
+        field={f[:collection_type]}
+        type="select"
+        label="Source Type"
+        prompt="Select type..."
+        options={[{"Channel (@handle or /channel/ URL)", "channel"}, {"Playlist (playlist?list= URL)", "playlist"}]}
+        x-model="sourceType"
+      />
+
+      <label
+        for={f[:original_url].id}
+        class="mt-5 mb-2 inline-block text-md font-medium text-black dark:text-white"
+        x-text="sourceType === 'playlist' ? 'Playlist URL' : sourceType === 'channel' ? 'Channel URL' : 'Source URL'"
+      >Source URL</label>
+      <.input
+        field={f[:original_url]}
+        type="text"
+        x-init="$el.focus()"
+        x-bind:disabled="sourceType === ''"
+        x-on:input="detectTypeFromUrl($el.value)"
+      />
+    </section>
 
     <.input
       field={f[:custom_name]}
