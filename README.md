@@ -5,8 +5,6 @@
 
 # Pinchfork
 
-*logo by [@hernandito](https://github.com/hernandito)*
-
 ## Table of contents
 
 - [Fork Changes](#fork-changes)
@@ -81,15 +79,9 @@ While you can download individual videos, Pinchflat is best suited for downloadi
 
 ### Docker Compose (with Postgres)
 
-This fork requires a Postgres container alongside the app. A ready-to-use compose file is provided. You will need to build the image locally from this repository.
+This fork requires a Postgres container alongside the app. Pre-built images are available on GHCR — no local build required.
 
-**Step 1 — Clone this repo on your server:**
-
-```bash
-git clone https://github.com/o51r15/pinchflat.git /opt/pinchflat-fork
-```
-
-**Step 2 — Create your docker-compose file.** Replace paths and password as needed:
+**Create your docker-compose file.** Replace paths and password as needed:
 
 ```yaml
 services:
@@ -109,15 +101,20 @@ services:
       timeout: 5s
       retries: 5
 
+  bgutil-provider:
+    container_name: bgutil-provider
+    image: brainicism/bgutil-ytdlp-pot-provider:latest
+    restart: unless-stopped
+
   pinchflat:
     container_name: pinchflat
-    build:
-      context: /opt/pinchflat-fork
-      dockerfile: docker/selfhosted.Dockerfile
+    image: ghcr.io/o51r15/pinchfork:latest
     restart: unless-stopped
     depends_on:
       pinchflat-db:
         condition: service_healthy
+      bgutil-provider:
+        condition: service_started
     environment:
       - TZ=America/New_York
       - DATABASE_URL=ecto://pinchflat:your_password_here@pinchflat-db/pinchflat
@@ -132,15 +129,15 @@ volumes:
   pinchflat_pgdata:
 ```
 
-**Step 3 — Build and start:**
+**Start:**
 
 ```bash
-docker compose -f /path/to/your/docker-compose.yml up -d --build
+docker compose -f /path/to/your/docker-compose.yml up -d
 ```
 
-The first build will take several minutes. Migrations run automatically at startup. The app will be available at `http://your-server:8945`.
+Migrations run automatically at startup. The app will be available at `http://your-server:8945`.
 
-> **Note:** The `--build` flag is required on first run and after any code changes. The Elixir release is compiled into the image.
+> **Updating:** Pull the latest image and recreate the container: `docker compose pull && docker compose up -d`
 
 ### Environment Variables
 
@@ -189,4 +186,4 @@ The [upstream wiki](https://github.com/kieraneglin/pinchflat/wiki) covers featur
 
 See `LICENSE` file. This fork is also licensed under AGPL-3.0.
 
-Original project by [kieraneglin](https://github.com/kieraneglin). Logo by [@hernandito](https://github.com/hernandito).
+Original project by [kieraneglin](https://github.com/kieraneglin).
