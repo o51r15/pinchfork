@@ -38,10 +38,6 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
     - The NFO file for the source (if specified)
     - Downloads and stores source images (if specified)
 
-  The worker is kicked off after a source is inserted or it's original_url
-  is updated - this can take an unknown amount of time so don't rely on this
-  data being here before, say, the first indexing or downloading task is complete.
-
   Returns :ok
   """
   @impl Oban.Worker
@@ -78,15 +74,23 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
   defp fetch_source_metadata_and_images(series_directory, source) do
     metadata_directory = MetadataFileHelpers.metadata_directory_for(source)
 
-    {:ok, metadata} = fetch_metadata_for_source(source)
-    metadata_image_attrs = SourceImageParser.store_source_images(metadata_directory, metadata)
+    # Guard against metadata fetch failures (e.g. yt-dlp errors, JSON decode issues).
+    # Previously an unguarded match here crashed the job with MatchError, bypassing
+    # the rescue block and causing noisy Oban retries/discards.
+    case fetch_metadata_for_source(source) do
+      {:ok, metadata} ->
+        metadata_image_attrs = SourceImageParser.store_source_images(metadata_directory, metadata)
 
-    if source.media_profile.download_source_images && series_directory do
-      source_image_attrs = SourceImageParser.store_source_images(series_directory, metadata)
+        if source.media_profile.download_source_images && series_directory do
+          source_image_attrs = SourceImageParser.store_source_images(series_directory, metadata)
+          {metadata, source_image_attrs, metadata_image_attrs}
+        else
+          {metadata, %{}, metadata_image_attrs}
+        end
 
-      {metadata, source_image_attrs, metadata_image_attrs}
-    else
-      {metadata, %{}, metadata_image_attrs}
+      {:error, reason} ->
+        Logger.warning("#{__MODULE__}: failed to fetch metadata for source #{source.id}: #{inspect(reason)}")
+        {%{}, %{}, %{}}
     end
   end
 
@@ -115,6 +119,9 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorker do
     base_opts = [convert_thumbnails: "jpg", output: tmp_output_path]
     should_use_cookies = Sources.use_cookies?(source, :metadata)
 
+    # :flat_playlist prevents yt-dlp from processing individual entries (no format
+    # API calls per video). Combined with the scoped template in get_source_metadata,
+    # this keeps JSON output small regardless of channel/playlist size.
     opts =
       if source.collection_type == :channel do
         base_opts ++ [:write_all_thumbnails, playlist_items: 0]

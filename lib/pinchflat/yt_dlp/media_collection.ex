@@ -104,24 +104,23 @@ defmodule Pinchflat.YtDlp.MediaCollection do
 
   The main purpose of this (past using as a fetcher for _other_ metadata) is to live
   as a compressed blob for possible future use. That's why it's not getting formatted like
-  `get_source_details/1`
+  `get_source_details/1`.
 
-  ! IMPORTANT ! - you'll always want to set `playlist_items: int` in `addl_opts.
-  This is great if you want to also return details about the videos in the playlists,
-  but it should be set in all cases to not over-fetch data.
-  For channels you should usually set this to 0 since channels return all the
-  metadata we need without needing to fetch the videos. On the other hand, playlists
-  don't return very useful images so you can set this to 1 to get the first video's
-  images, for instance.
+  Uses a scoped output template (excludes `entries` and per-video format data) to keep
+  the JSON output small. Large channels previously produced multi-MB JSON blobs that
+  caused truncation failures on resource-constrained hosts. The fields included cover
+  everything used by NfoBuilder, SourceImageParser, and the compressed metadata store.
 
   Returns {:ok, map()} | {:error, any, ...}.
   """
   def get_source_metadata(source_url, command_opts, addl_opts \\ []) do
-    # This only validates that the `playlist_items` key is present. It's otherwise unused
-    _playlist_items = Keyword.fetch!(command_opts, :playlist_items)
+    all_command_opts = [:skip_download, :flat_playlist] ++ command_opts
 
-    all_command_opts = [:skip_download] ++ command_opts
-    output_template = "playlist:%()j"
+    # Scoped template: includes all fields used downstream (description, thumbnails for
+    # avatar/banner, title/id for NFO, extras for stored blob) while explicitly excluding
+    # `entries` and per-video format data. The unscoped `playlist:%()j` produced 1MB+
+    # JSON for large channels, causing Jason.DecodeError on truncated writes.
+    output_template = "playlist:%(.{id,channel,channel_id,title,description,thumbnails,uploader,uploader_id,uploader_url,channel_url,playlist_count,channel_follower_count,tags,availability,modified_date,view_count})j"
     action = :get_source_metadata
 
     with {:ok, output} <- backend_runner().run(source_url, action, all_command_opts, output_template, addl_opts),

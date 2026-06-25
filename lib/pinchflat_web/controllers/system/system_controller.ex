@@ -74,7 +74,7 @@ defmodule PinchflatWeb.System.SystemController do
     {flash_type, flash_msg} =
       case System.cmd(
         "curl",
-        ["-s", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{}", "--max-time", "15", "http://bgutil-provider:4416/get_pot"],
+        ["-s", "-X", "POST", "-H", "Content-Type: application/json", "-d", "{}", "--max-time", "30", "http://bgutil-provider:4416/get_pot"],
         stderr_to_stdout: true
       ) do
         {output, 0} ->
