@@ -24,6 +24,12 @@
 
 ---
 
+> ⚠️ **Playlist support is currently inconsistent.** Playlists may fail to download media, fail to fetch metadata, or behave unpredictably depending on the deployment. Channel URLs are recommended. Playlist support is being actively investigated.
+
+> ⚠️ **ARM hardware (Raspberry Pi) is unsupported.** Pinchfork runs on Pi hardware but there are known architecture-specific bugs with yt-dlp source type detection and YouTube authentication. Use on Pi at your own risk. Issues specific to ARM are low priority and may not be fixed.
+
+---
+
 ## Fork Changes
 
 This fork diverges from upstream in the following ways:
