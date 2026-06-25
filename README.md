@@ -32,7 +32,7 @@
 
 ## Fork Changes
 
-This fork diverges from upstream in the following ways:
+What started as a targeted database swap has grown into a substantial independent rewrite. The fork now diverges from upstream across the backend, UI, and feature set.
 
 ### PostgreSQL backend (replaces SQLite)
 
@@ -50,25 +50,49 @@ The original Pinchflat uses SQLite as its database. This fork replaces it with P
 - Full-text search migrated from SQLite FTS5 virtual table to Postgres `tsvector` with a GIN index and trigger-maintained updates
 - Deployment requires a Postgres sidecar container (see installation below)
 
-**What stays the same:**
+### UI overhaul (Sonarr-style)
 
-All application features, the web UI, yt-dlp integration, media profiles, sources, Jellyfin/Plex/Kodi support, SponsorBlock, RSS feeds, Apprise notifications, and lifecycle scripts are unchanged. This is purely a backend infrastructure change.
+The upstream UI has been significantly redesigned:
+
+- Source library displays as a poster card grid with download progress bars and one-click monitored toggles
+- Source detail pages use a fanart banner, poster overlay, and granular stats bar (Downloaded / Pending / Failed / Prevented / Skipped)
+- Horizontal action bar replaces the dropdown menu
+- Episode list groups by year with collapsible sections, per-item status badges, and monitored toggles
+- Dedicated Activity page replaces the cluttered home dashboard
+- System Status page shows Pinchfork version, yt-dlp version, PostgreSQL stats, Oban queue health, and live PO token server status
+
+### Source management
+
+- **Source type selector** — Channel vs Playlist is now user-selectable on the new source form, overriding yt-dlp's auto-detection which can be unreliable on some architectures
+- **Metadata editor** — Edit source name and description directly with per-field lock toggles to prevent metadata refreshes from overwriting your changes; upload or link a custom poster image
+- **Content availability filtering** — Per-source controls for public videos and members-only videos independently
+- **Cookie behaviour per source** — Granular control over when cookies are used (disabled / when needed / all operations)
+- **Video client override** — Select the yt-dlp player client per source to bypass SABR or work around authentication issues
+- **Download cutoff date presets** — Quick-select common date offsets alongside the manual date field
+
+### Media tracking
+
+- **Error classification** — `error_type` field distinguishes permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits). Permanent failures automatically set `prevent_download: true`.
+- **Prevention reason tracking** — `download_prevented_reason` field distinguishes manual prevention, policy blocks, and error-stops so re-indexing doesn't accidentally re-enable intentionally blocked items
+
+### yt-dlp and reliability
+
+- **PO token support** — Integration with the bgutil sidecar for YouTube PO token generation. Required for reliable downloads on some content.
+- **SABR bypass** — Video client selector allows routing around SABR-corrupted downloads
+- **yt-dlp version management** — `YT_DLP_VERSION` env var controls update behavior: `stable`, `nightly`, `master`, `pinned`/`none`, or a specific version string
+- **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart, automatically re-queuing them after 30 minutes
+- **Metadata reliability fixes** — Scoped yt-dlp output template prevents multi-MB JSON truncation on resource-constrained hosts; graceful error handling prevents metadata failures from causing noisy Oban retries
+
+### Additional features
+
+- **YouTube API key tester** — One-click validation from the Settings page
+- **Local temp staging** — Downloads can stage to a local path before moving to a network share, eliminating partial-file issues on slow mounts
 
 ---
 
 ## Roadmap
 
-- [x] **v0.1.0** — PostgreSQL backend migration. Replaces SQLite with Postgres, resolves Oban write contention, migrates full-text search to `tsvector`, rewrites all SQLite-specific query syntax.
-- [x] **Source-level content availability filtering** — Per-source checkboxes to control whether public videos, members-only videos, or both are downloaded. Captures yt-dlp `availability` field at index time and re-evaluates on rescan.
-- [x] **Error classification system** — `error_type` field on `media_items` to distinguish permanent failures (members-only, unavailable, geo-blocked) from transient ones (network errors, rate limits).
-- [x] **Permanent failure prevention** — Once a video is classified as a permanent failure, set `prevent_download: true` automatically so it stops consuming retry cycles.
-- [x] **Oban Lifeline plugin** — Rescues jobs stuck in `executing` state after a crash or container restart. Automatically retries them after 30 minutes. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#860](https://github.com/kieraneglin/pinchflat/pull/860))*
-- [x] **yt-dlp version management** — `YT_DLP_VERSION` environment variable to control update behavior: `stable` (default), `nightly`, `master`, `pinned`/`none` to disable, or a specific version string. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#858](https://github.com/kieraneglin/pinchflat/pull/858))*
-- [x] **Download prevention reason tracking** — `download_prevented_reason` field to distinguish between manually prevented, policy-blocked, and error-stopped downloads so re-indexing doesn't accidentally re-enable intentionally blocked items.
-- [ ] **Queue diagnostics page** — New Config menu item with Oban queue health stats, stuck job detection, and bulk reset/cancel actions. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#859](https://github.com/kieraneglin/pinchflat/pull/859))*
-- [x] **YouTube API key tester** — One-click API key validation from the Settings page. *(credit: [ddacunha](https://github.com/ddacunha), upstream PR [#857](https://github.com/kieraneglin/pinchflat/pull/857))*
-- [x] **Sonarr-inspired UI overhaul** — Source library displays as a poster card grid with download progress bars and one-click monitored toggles. Source detail pages use a Sonarr-style fanart banner, granular stats bar (Downloaded / Pending / Failed / Prevented / Skipped), and a horizontal action bar replacing the dropdown menu. Episode list groups media by year (season analog) with collapsible sections, per-item status badges, and monitored toggles. Dedicated Activity page replaces the cluttered home dashboard.
-- [x] **System status page** — Shows Pinchfork version, yt-dlp version, PostgreSQL version and database size, Oban queue health, and live bgutil PO token server status with a one-click token generation test.
+See the [Roadmap](https://github.com/o51r15/pinchfork/wiki/Roadmap) on the wiki for planned features and known bugs.
 
 ---
 
@@ -238,7 +262,7 @@ Permanent failures include: video unavailable, removed, private, members-only, a
 
 ## Upstream documentation
 
-For documentation on features, media profiles, sources, Jellyfin/Plex setup, cookies, SponsorBlock, and other functionality, refer to the [upstream wiki](https://github.com/kieraneglin/pinchflat/wiki). All feature documentation remains accurate for this fork — only the installation and database backend differ.
+The [upstream wiki](https://github.com/kieraneglin/pinchflat/wiki) covers features that have not changed in this fork: media profiles, SponsorBlock, RSS feeds, Apprise notifications, lifecycle scripts, and Jellyfin/Plex/Kodi setup. For anything related to the UI, source management, or features added in this fork, refer to the [Pinchfork wiki](https://github.com/o51r15/pinchfork/wiki) instead.
 
 ---
 
