@@ -351,19 +351,18 @@ defmodule PinchflatWeb.Sources.SourceController do
     metadata_dir = Pinchflat.Metadata.MetadataFileHelpers.metadata_directory_for(source)
     File.mkdir_p!(metadata_dir)
 
-    # Remove any old custom poster with a different extension
-    Enum.each(Map.values(@allowed_poster_types), fn ext ->
-      old_path = Path.join(metadata_dir, "custom_poster" <> ext)
-      if File.exists?(old_path), do: File.rm(old_path)
-    end)
-
+    # Fetch/validate first, and only replace the existing poster once the new one is
+    # safely on disk — a failed upload or fetch must leave the current poster untouched.
     result =
       cond do
         upload = get_in(params, ["poster", "upload"]) ->
           ext = poster_extension(upload.content_type, upload.filename)
-          dest_path = Path.join(metadata_dir, "custom_poster" <> ext)
-          File.cp!(upload.path, dest_path)
-          {:ok, dest_path}
+
+          case File.stat(upload.path) do
+            {:ok, %{size: size}} when size > @max_poster_bytes -> {:error, "Image exceeds 10 MB size limit"}
+            {:ok, _} -> save_poster(metadata_dir, ext, fn tmp -> File.cp(upload.path, tmp) end)
+            _ -> {:error, "Could not read uploaded image"}
+          end
 
         (url = get_in(params, ["poster", "url"])) && url != "" ->
           fetch_poster_from_url(url, metadata_dir)
@@ -410,6 +409,28 @@ defmodule PinchflatWeb.Sources.SourceController do
       end
   end
 
+  # Writes the new poster to a temp file, atomically renames it into place, and only then
+  # removes any previous custom poster saved under a different extension.
+  defp save_poster(metadata_dir, ext, write_fun) do
+    dest_path = Path.join(metadata_dir, "custom_poster" <> ext)
+    tmp_path = dest_path <> ".tmp"
+
+    with :ok <- write_fun.(tmp_path),
+         :ok <- File.rename(tmp_path, dest_path) do
+      @allowed_poster_types
+      |> Map.values()
+      |> Enum.uniq()
+      |> Enum.reject(&(&1 == ext))
+      |> Enum.each(fn old_ext -> File.rm(Path.join(metadata_dir, "custom_poster" <> old_ext)) end)
+
+      {:ok, dest_path}
+    else
+      _ ->
+        File.rm(tmp_path)
+        {:error, "Could not save image"}
+    end
+  end
+
   defp fetch_poster_from_url(url, metadata_dir) do
     case :httpc.request(:get, {String.to_charlist(url), []}, [], body_format: :binary) do
       {:ok, {{_version, 200, _reason}, headers, body}} when byte_size(body) <= @max_poster_bytes ->
@@ -423,9 +444,7 @@ defmodule PinchflatWeb.Sources.SourceController do
 
         if Map.has_key?(@allowed_poster_types, content_type) do
           ext = @allowed_poster_types[content_type]
-          dest_path = Path.join(metadata_dir, "custom_poster" <> ext)
-          File.write!(dest_path, body)
-          {:ok, dest_path}
+          save_poster(metadata_dir, ext, fn tmp -> File.write(tmp, body) end)
         else
           {:error, "URL did not return a supported image type (JPEG, PNG, or WebP)"}
         end
