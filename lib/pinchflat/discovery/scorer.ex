@@ -24,10 +24,11 @@ defmodule Pinchflat.Discovery.Scorer do
 
   defp compute_score(candidate) do
     mention_score = mention_signal(candidate)
+    featured_score = featured_signal(candidate)
     agreement_score = generator_agreement_signal(candidate)
     activity_score = activity_signal(candidate)
 
-    total = mention_score + agreement_score + activity_score
+    total = mention_score + featured_score + agreement_score + activity_score
 
     Map.merge(candidate, %{
       score: total,
@@ -49,18 +50,28 @@ defmodule Pinchflat.Discovery.Scorer do
     end
   end
 
-  # Candidates found by multiple generators get a big boost.
+  # Candidates independently found by more than one generator get a big boost.
+  # Counts distinct generators only — being featured IS the G2 signal, so it must not be
+  # counted a second time (that previously gave every G2-only candidate the +50 bonus).
   defp generator_agreement_signal(candidate) do
-    generators = Map.get(candidate, :generators, [])
-    featured_count = Map.get(candidate, :featured_by_count, 0)
-
-    gen_count = length(generators) + if featured_count > 0, do: 1, else: 0
+    gen_count =
+      candidate
+      |> Map.get(:generators, [])
+      |> Enum.uniq()
+      |> length()
 
     case gen_count do
       n when n >= 3 -> 100.0
       2 -> 50.0
       _ -> 0.0
     end
+  end
+
+  # The core G2 signal: how many of the user's own channels feature this one.
+  # 20 points per featuring source, capped at 60 (3+ sources is already a near-certain hit).
+  defp featured_signal(candidate) do
+    featured_count = Map.get(candidate, :featured_by_count, 0)
+    min(featured_count, 3) * 20.0
   end
 
   # Recent uploads = active channel = better suggestion.
