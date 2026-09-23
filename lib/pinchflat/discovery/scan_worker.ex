@@ -3,7 +3,7 @@ defmodule Pinchflat.Discovery.ScanWorker do
   Oban worker that orchestrates the discovery pipeline:
   G1 (mention mining) → G2 (featured channels) → validate → score → persist.
 
-  Triggered manually from the Discovery page — no schedule (by design).
+  Runs daily via Oban cron (03:00 UTC) and on demand from the Discovery page.
   """
 
   use Oban.Worker,
@@ -12,7 +12,6 @@ defmodule Pinchflat.Discovery.ScanWorker do
     unique: [period: 300]
 
   require Logger
-  import Ecto.Query
 
   alias Pinchflat.Discovery
   alias Pinchflat.Discovery.MentionMiner
@@ -46,31 +45,27 @@ defmodule Pinchflat.Discovery.ScanWorker do
       Logger.info("[Discovery] No candidates found, scan complete")
       {:ok, :no_candidates}
     else
-      # Phase 2: Take top candidates by raw score, validate and enrich
+      # Phase 2: Drop anything we already know to skip (own sources by UC id or @handle,
+      # dismissed/accepted suggestions) BEFORE the top-N cut, so it doesn't burn validation slots.
+      excluded = Discovery.excluded_identifiers()
+
+      {skipped, eligible} =
+        Enum.split_with(candidates, fn c -> MapSet.member?(excluded, String.downcase(c.identifier)) end)
+
       top_candidates =
-        candidates
+        eligible
         |> Enum.sort_by(& &1.score, :desc)
         |> Enum.take(@max_candidates_to_validate)
 
-      # Exclude channels already dismissed or accepted from validation
-      excluded_suggestions =
-        Pinchflat.Repo.all(
-          from(d in Pinchflat.Discovery.DiscoverySuggestion,
-            where: d.status in ["dismissed", "accepted"],
-            select: d.channel_id
-          )
-        )
-        |> MapSet.new()
-
-      top_candidates =
-        top_candidates
-        |> Enum.reject(fn c -> MapSet.member?(excluded_suggestions, c[:channel_id]) end)
-
       Logger.info(
-        "[Discovery] Validating top #{length(top_candidates)} candidates (excluded #{MapSet.size(excluded_suggestions)} dismissed/accepted)"
+        "[Discovery] Validating top #{length(top_candidates)} candidates (skipped #{length(skipped)} already-known)"
       )
 
-      validated = Validator.validate_and_enrich(top_candidates)
+      validated =
+        top_candidates
+        |> Validator.validate_and_enrich()
+        |> merge_by_channel_id()
+
       Logger.info("[Discovery] #{length(validated)} candidates passed validation")
 
       # Phase 3: Score with tier balancing
@@ -152,6 +147,31 @@ defmodule Pinchflat.Discovery.ScanWorker do
 
     Enum.reverse(merged) ++ g2_only
   end
+
+  # G1 yields @handles and G2 yields UC… ids, so the same channel can arrive as two
+  # candidates. Once the validator has resolved everything to a channel_id, fold duplicates
+  # together so provenance (generators, mentions, featured-by) is combined, not overwritten.
+  defp merge_by_channel_id(validated) do
+    validated
+    |> Enum.group_by(& &1.channel_id)
+    |> Enum.map(fn {_channel_id, [first | rest]} -> Enum.reduce(rest, first, &combine_candidates/2) end)
+  end
+
+  defp combine_candidates(other, acc) do
+    featured_ids = union_sets(acc[:featured_by_source_ids], other[:featured_by_source_ids])
+
+    Map.merge(acc, %{
+      generators: Enum.uniq(Map.get(acc, :generators, []) ++ Map.get(other, :generators, [])),
+      mention_count: Map.get(acc, :mention_count, 0) + Map.get(other, :mention_count, 0),
+      mentioning_source_ids: union_sets(acc[:mentioning_source_ids], other[:mentioning_source_ids]),
+      featured_by_source_ids: featured_ids,
+      featured_by_count: MapSet.size(featured_ids),
+      score: Map.get(acc, :score, 0) + Map.get(other, :score, 0),
+      name: acc[:name] || other[:name]
+    })
+  end
+
+  defp union_sets(a, b), do: MapSet.union(a || MapSet.new(), b || MapSet.new())
 
   defp persist_suggestions(scored, now) do
     Enum.reduce(scored, 0, fn candidate, count ->

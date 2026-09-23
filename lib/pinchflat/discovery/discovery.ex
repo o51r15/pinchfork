@@ -132,6 +132,38 @@ defmodule Pinchflat.Discovery do
   end
 
   @doc """
+  Returns lowercased identifiers (UC… channel ids and @handles) that a scan should not
+  spend a yt-dlp validation call on: existing sources (by collection_id and by the @handle
+  in their original_url) plus dismissed and accepted suggestions.
+
+  Returns MapSet.t()
+  """
+  def excluded_identifiers do
+    source_identifiers =
+      from(s in Pinchflat.Sources.Source, select: {s.collection_id, s.original_url})
+      |> Repo.all()
+      |> Enum.flat_map(fn {collection_id, url} -> [collection_id, handle_from_url(url)] end)
+
+    suggestion_ids =
+      from(s in DiscoverySuggestion, where: s.status in ["dismissed", "accepted"], select: s.channel_id)
+      |> Repo.all()
+
+    (source_identifiers ++ suggestion_ids)
+    |> Enum.reject(&is_nil/1)
+    |> Enum.map(&String.downcase/1)
+    |> MapSet.new()
+  end
+
+  defp handle_from_url(nil), do: nil
+
+  defp handle_from_url(url) do
+    case Regex.run(~r{youtube\.com/(@[^/?#]+)}i, url) do
+      [_, handle] -> URI.decode(handle)
+      _ -> nil
+    end
+  end
+
+  @doc """
   Returns whether discovery is enabled and which generators are active.
 
   Returns %{enabled: boolean, generators: %{g1: boolean, g2: boolean, g3: boolean, g4: boolean},
