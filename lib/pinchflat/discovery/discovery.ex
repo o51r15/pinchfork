@@ -64,7 +64,8 @@ defmodule Pinchflat.Discovery do
 
   @doc """
   Creates or updates a suggestion by channel_id (upsert).
-  If the channel already exists, updates score/provenance/status fields.
+  If the channel already exists, refreshes its metadata/score/provenance. `status` is never
+  in the replace list, so a dismissed or accepted suggestion keeps its status.
 
   Returns {:ok, %DiscoverySuggestion{}} | {:error, %Ecto.Changeset{}}
   """
@@ -88,10 +89,39 @@ defmodule Pinchflat.Discovery do
            :scanned_at,
            :updated_at
          ]},
-      conflict_target: :channel_id,
-      # Don't overwrite a dismissed suggestion
-      where: [status: "pending"]
+      conflict_target: :channel_id
     )
+  end
+
+  @doc """
+  Brings suggestion status in line with the user's actual sources:
+
+    * pending suggestions whose channel is now a source are marked "accepted"
+      (covers channels added by hand as well as via the Discovery accept flow), and
+    * "accepted" suggestions whose channel is NOT a source go back to "pending" — the user
+      clicked Accept but never finished creating the source, so it should resurface.
+
+  Cheap (two UPDATEs); called before each scan and whenever the Discovery page loads.
+
+  Returns {accepted_count, reopened_count}
+  """
+  def reconcile_with_sources do
+    now = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_naive()
+
+    source_channel_ids =
+      from(s in Pinchflat.Sources.Source, where: not is_nil(s.collection_id), select: s.collection_id)
+
+    {accepted, _} =
+      from(d in DiscoverySuggestion, where: d.status == "pending" and d.channel_id in subquery(source_channel_ids))
+      |> Repo.update_all(set: [status: "accepted", updated_at: now])
+
+    {reopened, _} =
+      from(d in DiscoverySuggestion,
+        where: d.status == "accepted" and d.channel_id not in subquery(source_channel_ids)
+      )
+      |> Repo.update_all(set: [status: "pending", updated_at: now])
+
+    {accepted, reopened}
   end
 
   @doc """

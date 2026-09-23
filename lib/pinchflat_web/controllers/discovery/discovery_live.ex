@@ -69,16 +69,20 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
 
   @impl true
   def handle_event("accept", %{"id" => id}, socket) do
-    with %{} = suggestion <- Discovery.get_suggestion(id),
-         {:ok, suggestion} <- Discovery.accept_suggestion(suggestion) do
-      {:noreply,
-       socket
-       |> put_flash(:info, "#{suggestion.name || suggestion.channel_id} accepted! Create a source for it below.")
-       |> redirect(
-         to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel"
-       )}
-    else
-      _ -> {:noreply, socket |> put_flash(:error, "That suggestion is no longer available.") |> load_suggestions()}
+    # Status is NOT changed here: the suggestion flips to "accepted" only once a source for the
+    # channel actually exists (Discovery.reconcile_with_sources/0). Backing out of the source
+    # form therefore leaves it pending instead of hiding it forever.
+    case Discovery.get_suggestion(id) do
+      %{} = suggestion ->
+        {:noreply,
+         socket
+         |> put_flash(:info, "Create a source for #{suggestion.name || suggestion.channel_id} below.")
+         |> redirect(
+           to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel"
+         )}
+
+      nil ->
+        {:noreply, socket |> put_flash(:error, "That suggestion is no longer available.") |> load_suggestions()}
     end
   end
 
@@ -93,6 +97,7 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
   end
 
   defp load_suggestions(socket) do
+    Discovery.reconcile_with_sources()
     suggestions = Discovery.list_random_suggestions(@display_count)
     pending_count = Discovery.pending_suggestion_count()
     settings = Discovery.discovery_settings()

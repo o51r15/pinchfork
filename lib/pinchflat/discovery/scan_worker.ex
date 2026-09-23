@@ -60,6 +60,9 @@ defmodule Pinchflat.Discovery.ScanWorker do
     Logger.info("[Discovery] Scan starting")
     now = DateTime.utc_now() |> DateTime.truncate(:second)
 
+    {accepted, reopened} = Discovery.reconcile_with_sources()
+    Logger.info("[Discovery] Reconciled with sources: #{accepted} marked accepted, #{reopened} reopened")
+
     # Phase 1: Generate candidates from enabled generators
     candidates = generate_candidates(settings)
     Logger.info("[Discovery] Generated #{length(candidates)} raw candidates")
