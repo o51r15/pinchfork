@@ -10,7 +10,9 @@
 
     <main>
       <div class="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
-        <.flash_group flash={@flash} />
+        <%!-- assigns[:flash]: error pages (e.g. an invalid CSRF token) can render this layout
+             before the flash was fetched; @flash would raise KeyError and turn a 403 into a 500. --%>
+        <.flash_group flash={assigns[:flash] || %{}} />
         {@inner_content}
       </div>
     </main>
