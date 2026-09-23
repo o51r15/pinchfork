@@ -9,7 +9,9 @@ defmodule Pinchflat.Discovery.ScanWorker do
   use Oban.Worker,
     queue: :default,
     max_attempts: 1,
-    unique: [period: 300]
+    # Only an in-flight scan blocks a new one. With the default unique states a scan that had
+    # just COMPLETED also counted, so "Scan Now" returned a silent conflict and spun forever.
+    unique: [period: 300, states: [:available, :scheduled, :executing]]
 
   require Logger
 
@@ -25,12 +27,33 @@ defmodule Pinchflat.Discovery.ScanWorker do
   def perform(_job) do
     settings = Discovery.discovery_settings()
 
-    unless settings.enabled do
-      Logger.info("[Discovery] Scan skipped — discovery is disabled")
-      {:ok, :disabled}
-    else
-      run_scan(settings)
-    end
+    result =
+      if settings.enabled do
+        run_scan(settings)
+      else
+        Logger.info("[Discovery] Scan skipped — discovery is disabled")
+        {:ok, :disabled}
+      end
+
+    # Always tell the Discovery page the scan is over (including disabled / no-candidate
+    # outcomes), otherwise its "Scanning..." spinner never clears.
+    broadcast_complete(result)
+    result
+  rescue
+    e ->
+      broadcast_complete({:error, Exception.message(e)})
+      reraise e, __STACKTRACE__
+  end
+
+  defp broadcast_complete(result) do
+    payload =
+      case result do
+        {:ok, %{persisted: persisted, validated: validated}} -> %{persisted: persisted, validated: validated}
+        {:ok, _other} -> %{persisted: 0, validated: 0}
+        {:error, message} -> %{persisted: 0, validated: 0, error: message}
+      end
+
+    Phoenix.PubSub.broadcast(Pinchflat.PubSub, "discovery:scan", {:scan_complete, payload})
   end
 
   defp run_scan(settings) do
@@ -75,12 +98,6 @@ defmodule Pinchflat.Discovery.ScanWorker do
       # Phase 4: Persist to discovery_suggestions
       persisted = persist_suggestions(scored, now)
       Logger.info("[Discovery] Scan complete — #{persisted} suggestions saved")
-
-      Phoenix.PubSub.broadcast(
-        Pinchflat.PubSub,
-        "discovery:scan",
-        {:scan_complete, %{persisted: persisted, validated: length(validated)}}
-      )
 
       {:ok, %{candidates: length(candidates), validated: length(validated), persisted: persisted}}
     end

@@ -10,9 +10,12 @@ defmodule Pinchflat.Settings.DismissedChannelsLive do
 
   @impl true
   def handle_event("restore", %{"id" => id}, socket) do
-    suggestion = Discovery.get_suggestion!(String.to_integer(id))
-    {:ok, _} = Discovery.restore_suggestion(suggestion)
-    {:noreply, load_dismissed(socket)}
+    with %{} = suggestion <- Discovery.get_suggestion(id),
+         {:ok, _} <- Discovery.restore_suggestion(suggestion) do
+      {:noreply, load_dismissed(socket)}
+    else
+      _ -> {:noreply, load_dismissed(socket)}
+    end
   end
 
   defp load_dismissed(socket) do

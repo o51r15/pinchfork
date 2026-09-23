@@ -24,17 +24,30 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
 
   @impl true
   def handle_info({:scan_complete, result}, socket) do
+    {flash_type, message} =
+      case result do
+        %{error: error} -> {:error, "Scan failed: #{error}"}
+        %{persisted: persisted} -> {:info, "Scan complete — #{persisted} suggestions updated."}
+      end
+
     {:noreply,
      socket
      |> assign(:scanning, false)
      |> assign(:scan_result, result)
-     |> put_flash(:info, "Scan complete — #{result.persisted} suggestions updated.")
+     |> put_flash(flash_type, message)
      |> load_suggestions()}
   end
 
   @impl true
   def handle_event("scan", _params, socket) do
     case ScanWorker.new(%{}) |> Oban.insert() do
+      {:ok, %Oban.Job{conflict?: true}} ->
+        # A scan is already queued or running — its completion broadcast will clear the spinner.
+        {:noreply,
+         socket
+         |> assign(:scanning, true)
+         |> put_flash(:info, "A scan is already running. This page will update when it finishes.")}
+
       {:ok, _job} ->
         {:noreply,
          socket
@@ -42,7 +55,7 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
          |> put_flash(:info, "Discovery scan started. This may take a few minutes.")}
 
       {:error, _} ->
-        {:noreply, put_flash(socket, :error, "Failed to start scan. A scan may already be running.")}
+        {:noreply, put_flash(socket, :error, "Failed to start scan.")}
     end
   end
 
@@ -56,22 +69,27 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
 
   @impl true
   def handle_event("accept", %{"id" => id}, socket) do
-    suggestion = Discovery.get_suggestion!(String.to_integer(id))
-    {:ok, _} = Discovery.accept_suggestion(suggestion)
-
-    {:noreply,
-     socket
-     |> put_flash(:info, "#{suggestion.name || suggestion.channel_id} accepted! Create a source for it below.")
-     |> redirect(
-       to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel"
-     )}
+    with %{} = suggestion <- Discovery.get_suggestion(id),
+         {:ok, suggestion} <- Discovery.accept_suggestion(suggestion) do
+      {:noreply,
+       socket
+       |> put_flash(:info, "#{suggestion.name || suggestion.channel_id} accepted! Create a source for it below.")
+       |> redirect(
+         to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel"
+       )}
+    else
+      _ -> {:noreply, socket |> put_flash(:error, "That suggestion is no longer available.") |> load_suggestions()}
+    end
   end
 
   @impl true
   def handle_event("dismiss", %{"id" => id}, socket) do
-    suggestion = Discovery.get_suggestion!(String.to_integer(id))
-    {:ok, _} = Discovery.dismiss_suggestion(suggestion)
-    {:noreply, load_suggestions(socket)}
+    with %{} = suggestion <- Discovery.get_suggestion(id),
+         {:ok, _} <- Discovery.dismiss_suggestion(suggestion) do
+      {:noreply, load_suggestions(socket)}
+    else
+      _ -> {:noreply, socket |> put_flash(:error, "That suggestion is no longer available.") |> load_suggestions()}
+    end
   end
 
   defp load_suggestions(socket) do

@@ -51,6 +51,18 @@ defmodule Pinchflat.Discovery do
   def get_suggestion!(id), do: Repo.get!(DiscoverySuggestion, id)
 
   @doc """
+  Gets a single suggestion from an untrusted id (e.g. a LiveView event param).
+
+  Returns %DiscoverySuggestion{} | nil
+  """
+  def get_suggestion(id) do
+    case Integer.parse(to_string(id)) do
+      {int_id, ""} -> Repo.get(DiscoverySuggestion, int_id)
+      _ -> nil
+    end
+  end
+
+  @doc """
   Creates or updates a suggestion by channel_id (upsert).
   If the channel already exists, updates score/provenance/status fields.
 
