@@ -400,7 +400,12 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
 
   defp enable_item(item) do
     {:ok, updated} =
-      Media.update_media_item(item, %{prevent_download: false, download_prevented_reason: nil, error_type: nil, last_error: nil})
+      Media.update_media_item(item, %{
+        prevent_download: false,
+        download_prevented_reason: nil,
+        error_type: nil,
+        last_error: nil
+      })
 
     updated = Repo.preload(updated, :source, force: true)
     DownloadingHelpers.kickoff_download_if_pending(updated)

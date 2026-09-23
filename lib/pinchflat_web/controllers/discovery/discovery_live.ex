@@ -62,7 +62,9 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
     {:noreply,
      socket
      |> put_flash(:info, "#{suggestion.name || suggestion.channel_id} accepted! Create a source for it below.")
-     |> redirect(to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel")}
+     |> redirect(
+       to: ~p"/sources/new?prefill_url=#{suggestion.url}&prefill_name=#{suggestion.name || ""}&prefill_type=channel"
+     )}
   end
 
   @impl true
@@ -81,6 +83,7 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
 
   defp scan_running? do
     import Ecto.Query
+
     Pinchflat.Repo.exists?(
       from(j in Oban.Job,
         where: j.worker == "Pinchflat.Discovery.ScanWorker",
@@ -96,7 +99,7 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
       <div>
         <h2 class="text-title-md2 font-bold text-black dark:text-white">Discovery</h2>
         <p :if={@pending_count > 0} class="text-sm text-bodydark2 mt-1">
-          Showing <%= length(@suggestions) %> of <%= @pending_count %> suggestions
+          Showing {length(@suggestions)} of {@pending_count} suggestions
         </p>
       </div>
       <div class="flex gap-2">
@@ -116,12 +119,15 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
           ]}
         >
           <.icon name="hero-magnifying-glass" class="h-4 w-4" />
-          <%= if @scanning, do: "Scanning...", else: "Scan Now" %>
+          {if @scanning, do: "Scanning...", else: "Scan Now"}
         </button>
       </div>
     </div>
 
-    <div :if={@scanning} class="mb-4 rounded-sm border border-stroke bg-white px-5 py-3 shadow-default dark:border-strokedark dark:bg-boxdark">
+    <div
+      :if={@scanning}
+      class="mb-4 rounded-sm border border-stroke bg-white px-5 py-3 shadow-default dark:border-strokedark dark:bg-boxdark"
+    >
       <div class="flex items-center gap-2 text-sm text-bodydark">
         <svg class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none">
           <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
@@ -131,14 +137,20 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
       </div>
     </div>
 
-    <div :if={!@discovery_enabled} class="rounded-sm border border-stroke bg-white px-5 py-8 shadow-default dark:border-strokedark dark:bg-boxdark text-center">
+    <div
+      :if={!@discovery_enabled}
+      class="rounded-sm border border-stroke bg-white px-5 py-8 shadow-default dark:border-strokedark dark:bg-boxdark text-center"
+    >
       <p class="text-lg text-bodydark mb-4">Discovery is disabled.</p>
       <.link href={~p"/settings"} class="text-primary hover:underline">
         Enable it in Settings → Discovery
       </.link>
     </div>
 
-    <div :if={@discovery_enabled && @suggestions == []} class="rounded-sm border border-stroke bg-white px-5 py-8 shadow-default dark:border-strokedark dark:bg-boxdark text-center">
+    <div
+      :if={@discovery_enabled && @suggestions == []}
+      class="rounded-sm border border-stroke bg-white px-5 py-8 shadow-default dark:border-strokedark dark:bg-boxdark text-center"
+    >
       <p class="text-lg text-bodydark mb-2">No suggestions yet.</p>
       <p class="text-sm text-bodydark2">Click "Scan Now" to discover new channels based on your library.</p>
     </div>
@@ -152,23 +164,23 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
           <div class="flex-1 min-w-0">
             <h3 class="text-lg font-semibold text-black dark:text-white truncate">
               <a href={suggestion.url} target="_blank" class="hover:underline">
-                <%= suggestion.name || suggestion.channel_id %>
+                {suggestion.name || suggestion.channel_id}
               </a>
             </h3>
             <p class="text-sm text-bodydark2 mt-1">
-              <%= format_subs(suggestion.subscriber_count) %> subscribers
-              <%= if suggestion.video_count, do: " · #{suggestion.video_count} videos" %>
+              {format_subs(suggestion.subscriber_count)} subscribers {if suggestion.video_count,
+                do: " · #{suggestion.video_count} videos"}
             </p>
           </div>
         </div>
 
         <p class="text-sm text-bodydark mb-4">
-          <%= suggestion.reason || "Discovered by scan" %>
+          {suggestion.reason || "Discovered by scan"}
         </p>
 
         <div class="flex items-center justify-between">
           <span class="text-xs text-bodydark2">
-            Score: <%= Float.round(suggestion.score, 1) %>
+            Score: {Float.round(suggestion.score, 1)}
           </span>
           <div class="flex gap-2">
             <button

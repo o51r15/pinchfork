@@ -24,12 +24,6 @@ defmodule Pinchflat.Discovery do
   end
 
   @doc """
-  Gets a single suggestion.
-
-  Returns %DiscoverySuggestion{}. Raises `Ecto.NoResultsError` if not found.
-  """
-
-  @doc """
   Returns N random pending suggestions for display on the Discovery page.
   """
   def list_random_suggestions(count \\ 10) do
@@ -49,6 +43,11 @@ defmodule Pinchflat.Discovery do
     |> Repo.one()
   end
 
+  @doc """
+  Gets a single suggestion.
+
+  Returns %DiscoverySuggestion{}. Raises `Ecto.NoResultsError` if not found.
+  """
   def get_suggestion!(id), do: Repo.get!(DiscoverySuggestion, id)
 
   @doc """
@@ -61,9 +60,22 @@ defmodule Pinchflat.Discovery do
     %DiscoverySuggestion{}
     |> DiscoverySuggestion.changeset(attrs)
     |> Repo.insert(
-      on_conflict: {:replace, [:name, :description, :thumbnail_url, :subscriber_count,
-        :video_count, :last_upload_at, :cluster, :reason, :provenance, :score, :scanned_at,
-        :updated_at]},
+      on_conflict:
+        {:replace,
+         [
+           :name,
+           :description,
+           :thumbnail_url,
+           :subscriber_count,
+           :video_count,
+           :last_upload_at,
+           :cluster,
+           :reason,
+           :provenance,
+           :score,
+           :scanned_at,
+           :updated_at
+         ]},
       conflict_target: :channel_id,
       # Don't overwrite a dismissed suggestion
       where: [status: "pending"]

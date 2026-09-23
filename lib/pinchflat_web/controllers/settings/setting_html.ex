@@ -27,7 +27,10 @@ defmodule PinchflatWeb.Settings.SettingHTML do
   def diagnostic_info_string do
     """
     - App Version: #{Application.spec(:pinchflat)[:vsn]}
-    - yt-dlp Version: #{case Settings.get(:yt_dlp_version) do {:ok, v} -> v; _ -> "unknown" end}
+    - yt-dlp Version: #{case Settings.get(:yt_dlp_version) do
+      {:ok, v} -> v
+      _ -> "unknown"
+    end}
     - Apprise Version: #{Settings.get!(:apprise_version)}
     - System Architecture: #{to_string(:erlang.system_info(:system_architecture))}
     - Timezone: #{Application.get_env(:pinchflat, :timezone)}

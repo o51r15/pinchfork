@@ -30,17 +30,13 @@ defmodule Pinchflat.Settings.DismissedChannelsLive do
         <li :for={s <- @dismissed} class="flex items-center justify-between rounded bg-meta-4/30 px-3 py-2">
           <div>
             <a href={s.url} target="_blank" class="text-sm font-medium text-white hover:underline">
-              <%= s.name || s.channel_id %>
+              {s.name || s.channel_id}
             </a>
             <span :if={s.subscriber_count} class="ml-2 text-xs text-bodydark2">
-              (<%= format_subs(s.subscriber_count) %> subs)
+              ({format_subs(s.subscriber_count)} subs)
             </span>
           </div>
-          <button
-            phx-click="restore"
-            phx-value-id={s.id}
-            class="rounded px-3 py-1 text-xs text-meta-3 hover:bg-meta-3/10"
-          >
+          <button phx-click="restore" phx-value-id={s.id} class="rounded px-3 py-1 text-xs text-meta-3 hover:bg-meta-3/10">
             Restore
           </button>
         </li>

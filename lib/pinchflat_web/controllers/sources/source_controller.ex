@@ -397,7 +397,6 @@ defmodule PinchflatWeb.Sources.SourceController do
     |> redirect(to: ~p"/sources/#{source}/edit_metadata")
   end
 
-
   # Determines the file extension for a poster based on content-type, falling back
   # to the original filename extension if the content-type is unknown.
   defp poster_extension(content_type, filename) do
@@ -405,6 +404,7 @@ defmodule PinchflatWeb.Sources.SourceController do
       case Path.extname(filename || "") |> String.downcase() do
         ext when ext in [".png", ".webp", ".jpg", ".jpeg"] ->
           if ext == ".jpeg", do: ".jpg", else: ext
+
         _ ->
           ".jpg"
       end

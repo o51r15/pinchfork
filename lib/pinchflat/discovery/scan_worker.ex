@@ -66,7 +66,10 @@ defmodule Pinchflat.Discovery.ScanWorker do
         top_candidates
         |> Enum.reject(fn c -> MapSet.member?(excluded_suggestions, c[:channel_id]) end)
 
-      Logger.info("[Discovery] Validating top #{length(top_candidates)} candidates (excluded #{MapSet.size(excluded_suggestions)} dismissed/accepted)")
+      Logger.info(
+        "[Discovery] Validating top #{length(top_candidates)} candidates (excluded #{MapSet.size(excluded_suggestions)} dismissed/accepted)"
+      )
+
       validated = Validator.validate_and_enrich(top_candidates)
       Logger.info("[Discovery] #{length(validated)} candidates passed validation")
 
@@ -130,12 +133,14 @@ defmodule Pinchflat.Discovery.ScanWorker do
             {[g1_candidate | acc], matched}
 
           g2_match ->
-            combined = Map.merge(g1_candidate, %{
-              generators: ["G1", "G2"],
-              featured_by_count: g2_match.featured_by_count,
-              featured_by_source_ids: g2_match.featured_by_source_ids,
-              score: g1_candidate.score + g2_match.score
-            })
+            combined =
+              Map.merge(g1_candidate, %{
+                generators: ["G1", "G2"],
+                featured_by_count: g2_match.featured_by_count,
+                featured_by_source_ids: g2_match.featured_by_source_ids,
+                score: g1_candidate.score + g2_match.score
+              })
+
             {[combined | acc], MapSet.put(matched, key)}
         end
       end)
@@ -167,7 +172,9 @@ defmodule Pinchflat.Discovery.ScanWorker do
       }
 
       case Discovery.upsert_suggestion(attrs) do
-        {:ok, _} -> count + 1
+        {:ok, _} ->
+          count + 1
+
         {:error, changeset} ->
           Logger.warning("[Discovery] Failed to persist #{candidate.channel_id}: #{inspect(changeset.errors)}")
           count

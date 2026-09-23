@@ -91,8 +91,7 @@ defmodule Pinchflat.Discovery.FeaturedChannels do
 
     output_template = "%(.{id,title,channel_id,url})j"
 
-    case runner.run(url, :discovery_featured_channels, command_opts, output_template,
-           skip_sleep_interval: true) do
+    case runner.run(url, :discovery_featured_channels, command_opts, output_template, skip_sleep_interval: true) do
       {:ok, output} ->
         entries =
           output

@@ -92,8 +92,7 @@ defmodule Pinchflat.Discovery.Validator do
 
     output_template = "%(.{channel_id,channel,channel_follower_count,channel_url,playlist_count,upload_date})j"
 
-    case runner.run(url, :discovery_enrich, command_opts, output_template,
-           skip_sleep_interval: true) do
+    case runner.run(url, :discovery_enrich, command_opts, output_template, skip_sleep_interval: true) do
       {:ok, output} ->
         parse_enrichment(output, candidate)
 
@@ -134,15 +133,19 @@ defmodule Pinchflat.Discovery.Validator do
   end
 
   defp parse_upload_date(nil), do: nil
+
   defp parse_upload_date(date_str) when is_binary(date_str) do
     case Date.from_iso8601(
-           String.slice(date_str, 0, 4) <> "-" <>
-           String.slice(date_str, 4, 2) <> "-" <>
-           String.slice(date_str, 6, 2)
+           String.slice(date_str, 0, 4) <>
+             "-" <>
+             String.slice(date_str, 4, 2) <>
+             "-" <>
+             String.slice(date_str, 6, 2)
          ) do
       {:ok, date} -> DateTime.new!(date, ~T[00:00:00], "Etc/UTC")
       _ -> nil
     end
   end
+
   defp parse_upload_date(_), do: nil
 end

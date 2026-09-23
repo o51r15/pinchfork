@@ -12,7 +12,11 @@ defmodule PinchflatWeb.System.SystemController do
       pinchflat_upstream: "2025.9.26",
       elixir_version: System.version(),
       otp_version: :erlang.system_info(:otp_release) |> to_string(),
-      yt_dlp_version: case Settings.get(:yt_dlp_version) do {:ok, v} -> v; _ -> nil end || "—"
+      yt_dlp_version:
+        case Settings.get(:yt_dlp_version) do
+          {:ok, v} -> v
+          _ -> nil
+        end || "—"
     }
 
     db_size =

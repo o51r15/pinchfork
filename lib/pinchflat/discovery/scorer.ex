@@ -66,16 +66,21 @@ defmodule Pinchflat.Discovery.Scorer do
   # Recent uploads = active channel = better suggestion.
   defp activity_signal(candidate) do
     case candidate[:last_upload_at] do
-      nil -> 0.0
+      nil ->
+        0.0
+
       %DateTime{} = dt ->
         days_ago = DateTime.diff(DateTime.utc_now(), dt, :day)
+
         cond do
           days_ago <= 30 -> 20.0
           days_ago <= 90 -> 10.0
           days_ago <= 365 -> 5.0
           true -> -10.0
         end
-      _ -> 0.0
+
+      _ ->
+        0.0
     end
   end
 
@@ -113,12 +118,14 @@ defmodule Pinchflat.Discovery.Scorer do
   end
 
   defp round_robin(_tiers, _grouped, 0, acc), do: Enum.reverse(acc)
+
   defp round_robin(tiers, grouped, remaining, acc) do
     {new_grouped, new_acc, taken} =
       Enum.reduce(tiers, {grouped, acc, 0}, fn tier, {g, a, t} ->
         case Map.get(g, tier, []) do
           [head | rest] when remaining - t > 0 ->
             {Map.put(g, tier, rest), [head | a], t + 1}
+
           _ ->
             {g, a, t}
         end
@@ -138,19 +145,22 @@ defmodule Pinchflat.Discovery.Scorer do
     mention_count = Map.get(candidate, :mention_count, 0)
     source_count = source_count(candidate)
 
-    parts = if mention_count > 0 do
-      src_text = if source_count > 1, do: "#{source_count} of your sources", else: "one of your sources"
-      ["Mentioned #{mention_count} times by #{src_text}" | parts]
-    else
-      parts
-    end
+    parts =
+      if mention_count > 0 do
+        src_text = if source_count > 1, do: "#{source_count} of your sources", else: "one of your sources"
+        ["Mentioned #{mention_count} times by #{src_text}" | parts]
+      else
+        parts
+      end
 
     featured_count = Map.get(candidate, :featured_by_count, 0)
-    parts = if featured_count > 0 do
-      ["Featured by #{featured_count} of your channels" | parts]
-    else
-      parts
-    end
+
+    parts =
+      if featured_count > 0 do
+        ["Featured by #{featured_count} of your channels" | parts]
+      else
+        parts
+      end
 
     case parts do
       [] -> "Discovered by scan"
