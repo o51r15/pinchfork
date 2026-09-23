@@ -13,6 +13,8 @@ defmodule Pinchflat.Discovery.FeaturedChannels do
   alias Pinchflat.Repo
   alias Pinchflat.Sources.Source
 
+  @sleep_between_sources_ms 2_000
+
   @doc """
   Crawls the /channels tab for every channel-type source and returns aggregated
   candidates sorted by how many sources feature them.
@@ -32,7 +34,13 @@ defmodule Pinchflat.Discovery.FeaturedChannels do
     Logger.info("[Discovery G2] Crawling featured channels for #{length(sources)} sources")
 
     sources
-    |> Enum.flat_map(&crawl_source/1)
+    |> Enum.with_index()
+    |> Enum.flat_map(fn {source, index} ->
+      # Space out the channel-tab crawls — these hit YouTube from the same IP (and cookies)
+      # the downloads use, so a tight burst risks tripping the bot check for everything.
+      if index > 0, do: Process.sleep(@sleep_between_sources_ms)
+      crawl_source(source)
+    end)
     |> aggregate()
     |> Enum.sort_by(& &1.score, :desc)
   end

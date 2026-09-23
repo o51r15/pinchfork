@@ -12,7 +12,9 @@ defmodule Pinchflat.Discovery.MentionMiner do
   alias Pinchflat.Repo
 
   # Patterns that identify YouTube channel references in descriptions
-  @handle_regex ~r/@([\w.-]{2,})/u
+  # The negative lookbehind skips email addresses ("name@agency.co") — a real @mention is
+  # preceded by whitespace/punctuation/start-of-text, never by a word character or a dot.
+  @handle_regex ~r/(?<![\w.])@([\w.-]{2,})/u
   @channel_url_regex ~r{youtube\.com/(?:channel/|c/|user/|@)([\w.-]+)}iu
 
   @doc """
@@ -29,25 +31,36 @@ defmodule Pinchflat.Discovery.MentionMiner do
     }
   """
   def mine do
-    fetch_descriptions()
-    |> extract_all_mentions()
+    fetch_mentions()
     |> aggregate_mentions()
     |> sort_and_return()
   end
 
-  defp fetch_descriptions do
-    from(m in "media_items",
-      where: not is_nil(m.description) and m.description != "",
-      select: %{description: m.description, source_id: m.source_id}
-    )
-    |> Repo.all()
-  end
+  # Streams descriptions in batches inside a transaction and keeps only the extracted
+  # mentions, rather than loading every description in the library into memory at once.
+  defp fetch_mentions do
+    query =
+      from(m in "media_items",
+        where: not is_nil(m.description) and m.description != "",
+        select: %{description: m.description, source_id: m.source_id}
+      )
 
-  defp extract_all_mentions(rows) do
-    Enum.flat_map(rows, fn %{description: desc, source_id: source_id} ->
-      mentions = extract_mentions(desc)
-      Enum.map(mentions, fn {identifier, type} -> {identifier, type, source_id} end)
-    end)
+    {:ok, mentions} =
+      Repo.transaction(
+        fn ->
+          query
+          |> Repo.stream(max_rows: 500)
+          |> Stream.flat_map(fn %{description: desc, source_id: source_id} ->
+            desc
+            |> extract_mentions()
+            |> Enum.map(fn {identifier, type} -> {identifier, type, source_id} end)
+          end)
+          |> Enum.to_list()
+        end,
+        timeout: :infinity
+      )
+
+    mentions
   end
 
   @doc """
@@ -64,12 +77,14 @@ defmodule Pinchflat.Discovery.MentionMiner do
 
   defp extract_handles(text) do
     Regex.scan(@handle_regex, text)
-    |> Enum.map(fn [_full, handle] -> {"@#{handle}", :handle} end)
+    |> Enum.map(fn [_full, handle] -> {"@#{trim_trailing_punctuation(handle)}", :handle} end)
+    |> Enum.reject(fn {handle, _} -> String.length(handle) < 3 end)
     |> Enum.reject(fn {handle, _} -> noise_handle?(handle) end)
   end
 
   defp extract_url_refs(text) do
     Regex.scan(@channel_url_regex, text)
+    |> Enum.map(fn [full, ref] -> [full, trim_trailing_punctuation(ref)] end)
     |> Enum.reject(fn [_full, ref] -> noise_handle?("@#{ref}") end)
     |> Enum.map(fn [_full, ref] ->
       cond do
@@ -85,6 +100,9 @@ defmodule Pinchflat.Discovery.MentionMiner do
       end
     end)
   end
+
+  # "Follow @someone." / "…/@someone-" — sentence punctuation isn't part of the handle.
+  defp trim_trailing_punctuation(ref), do: ref |> String.trim_trailing(".") |> String.trim_trailing("-")
 
   # Filter out common noise — email-like @mentions, social media handles that
   # aren't YouTube channels, and known non-channel patterns.
