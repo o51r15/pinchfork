@@ -36,7 +36,7 @@ defmodule PinchflatWeb.Settings.AppriseServerLiveTest do
     test "sends a test message to the specified server", %{conn: conn} do
       expect(AppriseRunnerMock, :run, fn servers, args ->
         assert servers == ["cool-value"]
-        assert args == [title: "Pinchflat Test", body: "This is a test message from Pinchflat"]
+        assert args == [title: "Pinchfork Test", body: "This is a test message from Pinchfork"]
 
         {:ok, ""}
       end)
@@ -44,7 +44,7 @@ defmodule PinchflatWeb.Settings.AppriseServerLiveTest do
       {:ok, view, _html} = live_isolated(conn, AppriseServerLive, session: create_session("cool-value"))
 
       assert view
-             |> element("button")
+             |> element("button[phx-click^='send']")
              |> render_click()
     end
 
@@ -53,7 +53,7 @@ defmodule PinchflatWeb.Settings.AppriseServerLiveTest do
 
       result =
         view
-        |> element("button")
+        |> element("button[phx-click^='send']")
         |> render_click()
 
       refute result =~ "hero-paper-airplane"

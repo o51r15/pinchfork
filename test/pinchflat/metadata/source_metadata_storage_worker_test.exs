@@ -259,13 +259,14 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
       perform_job(SourceMetadataStorageWorker, %{id: source.id})
     end
 
-    test "does not set use_cookies if the source uses cookies when needed" do
+    # Fork: :when_needed covers :metadata.
+    test "sets use_cookies if the source uses cookies when needed" do
       expect(YtDlpRunnerMock, :run, 2, fn
         _url, :get_source_details, _opts, _ot, _addl ->
           {:ok, source_details_return_fixture()}
 
         _url, :get_source_metadata, _opts, _ot, addl ->
-          assert {:use_cookies, false} in addl
+          assert {:use_cookies, true} in addl
           {:ok, render_metadata(:channel_source_metadata)}
       end)
 
@@ -343,10 +344,11 @@ defmodule Pinchflat.Metadata.SourceMetadataStorageWorkerTest do
       perform_job(SourceMetadataStorageWorker, %{id: source.id})
     end
 
-    test "does not set use_cookies if the source uses cookies when needed" do
+    # Fork: :when_needed covers :metadata.
+    test "sets use_cookies if the source uses cookies when needed" do
       expect(YtDlpRunnerMock, :run, 2, fn
         _url, :get_source_details, _opts, _ot, addl ->
-          assert {:use_cookies, false} in addl
+          assert {:use_cookies, true} in addl
           {:ok, source_details_return_fixture()}
 
         _url, :get_source_metadata, _opts, _ot, _addl ->

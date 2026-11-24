@@ -44,7 +44,7 @@ defmodule Pinchflat.Downloading.StagingPaths do
   `/downloads-staging/<sanitized media_id>`.
 
   The media_id is sanitized so it can never escape the staging base or produce an
-  unintended nested path -- only `[A-Za-z0-9._-]` are kept and any other character
+  unintended nested path -- only `[A-Za-z0-9_-]` are kept and any other character
   (path separators, whitespace, etc.) is replaced with `_`. YouTube ids are already in
   this safe set; the sanitization defensively covers the "tenuous non-YouTube source"
   case so a malformed id can never turn a later `rm_rf` into something destructive.
@@ -55,13 +55,12 @@ defmodule Pinchflat.Downloading.StagingPaths do
 
   defp sanitize(nil), do: "_unknown"
 
+  # Empty, "." and ".." would resolve to the staging base itself or its parent. Never allow that.
+  defp sanitize(media_id) when media_id in ["", ".", ".."], do: "_unknown"
+
   defp sanitize(media_id) when is_binary(media_id) do
-    case String.replace(media_id, ~r/[^A-Za-z0-9._-]/, "_") do
-      # Guard against a value that sanitizes to empty, "." or ".." -- any of which would
-      # resolve to the staging base itself or its parent. Never allow that.
-      sanitized when sanitized in ["", ".", ".."] -> "_unknown"
-      sanitized -> sanitized
-    end
+    # YouTube ids use exactly [A-Za-z0-9_-]. Dots are replaced too, so ".." can't survive.
+    String.replace(media_id, ~r/[^A-Za-z0-9_-]/, "_")
   end
 
   defp sanitize(media_id), do: sanitize(to_string(media_id))

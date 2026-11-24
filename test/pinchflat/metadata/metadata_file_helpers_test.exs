@@ -79,7 +79,7 @@ defmodule Pinchflat.Metadata.MetadataFileHelpersTest do
                  :skip_download,
                  :write_thumbnail,
                  convert_thumbnail: "jpg",
-                 output: "/tmp/test/metadata/media_items/1/thumbnail.%(ext)s"
+                 output: "/tmp/test/metadata/media_items/#{media_item.id}/thumbnail.%(ext)s"
                ]
 
         {:ok, ""}
@@ -110,9 +110,10 @@ defmodule Pinchflat.Metadata.MetadataFileHelpersTest do
       Helpers.download_and_store_thumbnail_for(media_item)
     end
 
-    test "does not set use_cookies if the source uses cookies when needed" do
+    # Fork: :when_needed covers :metadata so thumbnails of age-gated videos still work.
+    test "sets use_cookies if the source uses cookies when needed" do
       expect(YtDlpRunnerMock, :run, fn _url, :download_thumbnail, _opts, _ot, addl ->
-        assert {:use_cookies, false} in addl
+        assert {:use_cookies, true} in addl
         {:ok, ""}
       end)
 

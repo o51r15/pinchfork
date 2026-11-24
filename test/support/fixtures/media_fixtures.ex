@@ -11,7 +11,8 @@ defmodule Pinchflat.MediaFixtures do
   Generate a media_item.
   """
   def media_item_fixture(attrs \\ %{}) do
-    media_id = Faker.String.base64(12)
+    # YouTube-style id: URL-safe base64 alphabet, so it never needs path sanitizing.
+    media_id = Faker.String.base64(12) |> String.replace("+", "-") |> String.replace("/", "_")
 
     {:ok, media_item} =
       attrs

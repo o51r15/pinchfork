@@ -56,8 +56,8 @@ config :pinchflat, Oban,
     local_data: 8
   ],
   plugins: [
-    # Keep old jobs for 30 days for display in the UI
-    {Oban.Plugins.Pruner, max_age: 30 * 24 * 60 * 60},
+    # Keep finished jobs for 7 days for display in the UI (30 days bloated oban_jobs)
+    {Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60},
     # Rescue jobs stuck in "executing" state after a crash or container restart
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
     {Oban.Plugins.Cron,
@@ -93,7 +93,7 @@ if config_env() == :prod do
       For example: ecto://postgres:postgres@localhost/pinchflat
       """
 
-  config :logger, level: String.to_existing_atom(System.get_env("LOG_LEVEL", "debug"))
+  config :logger, level: String.to_existing_atom(System.get_env("LOG_LEVEL", "info"))
 
   config :pinchflat,
     yt_dlp_executable: System.find_executable("yt-dlp"),

@@ -78,8 +78,7 @@ defmodule Pinchflat.Discovery.MentionMiner do
   defp extract_handles(text) do
     Regex.scan(@handle_regex, text)
     |> Enum.map(fn [_full, handle] -> {"@#{trim_trailing_punctuation(handle)}", :handle} end)
-    |> Enum.reject(fn {handle, _} -> String.length(handle) < 3 end)
-    |> Enum.reject(fn {handle, _} -> noise_handle?(handle) end)
+    |> Enum.reject(fn {handle, _} -> String.length(handle) < 3 or noise_handle?(handle) end)
   end
 
   defp extract_url_refs(text) do

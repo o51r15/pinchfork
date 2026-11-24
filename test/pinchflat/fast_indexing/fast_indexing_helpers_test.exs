@@ -167,11 +167,12 @@ defmodule Pinchflat.FastIndexing.FastIndexingHelpersTest do
       assert [%MediaItem{}] = FastIndexingHelpers.index_and_kickoff_downloads(source)
     end
 
-    test "does not set use_cookies if the source uses cookies when needed" do
+    # Fork: :when_needed covers :indexing, so fast indexing sends cookies too.
+    test "sets use_cookies if the source uses cookies when needed" do
       expect(HTTPClientMock, :get, fn _url -> {:ok, "<yt:videoId>test_1</yt:videoId>"} end)
 
       stub(YtDlpRunnerMock, :run, fn _url, :get_media_attributes, _opts, _ot, addl ->
-        assert {:use_cookies, false} in addl
+        assert {:use_cookies, true} in addl
 
         {:ok, media_attributes_return_fixture()}
       end)

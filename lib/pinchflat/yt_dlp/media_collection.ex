@@ -114,6 +114,9 @@ defmodule Pinchflat.YtDlp.MediaCollection do
   Returns {:ok, map()} | {:error, any, ...}.
   """
   def get_source_metadata(source_url, command_opts, addl_opts \\ []) do
+    # Without playlist_items yt-dlp walks every entry of the channel, which is slow and
+    # huge for big channels. Every caller must set it, so fail loudly if one doesn't.
+    _playlist_items = Keyword.fetch!(command_opts, :playlist_items)
     all_command_opts = [:skip_download] ++ command_opts
 
     # Scoped template: includes all fields used downstream (description, thumbnails for
@@ -126,11 +129,25 @@ defmodule Pinchflat.YtDlp.MediaCollection do
     action = :get_source_metadata
 
     with {:ok, output} <- backend_runner().run(source_url, action, all_command_opts, output_template, addl_opts),
-         last_line <- output |> String.split("\n", trim: true) |> List.last(""),
-         {:ok, parsed_json} <- Phoenix.json_library().decode(last_line) do
+         {:ok, parsed_json} <- decode_json_output(output) do
       {:ok, parsed_json}
     else
       err -> err
+    end
+  end
+
+  # yt-dlp prints the JSON on one line, but warnings can come before it. Try the whole
+  # output first (covers pretty-printed JSON), then fall back to the last line.
+  defp decode_json_output(output) do
+    case Phoenix.json_library().decode(output) do
+      {:ok, parsed_json} ->
+        {:ok, parsed_json}
+
+      _ ->
+        output
+        |> String.split("\n", trim: true)
+        |> List.last("")
+        |> Phoenix.json_library().decode()
     end
   end
 

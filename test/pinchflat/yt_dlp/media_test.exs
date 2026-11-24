@@ -216,7 +216,7 @@ defmodule Pinchflat.YtDlp.MediaTest do
   describe "indexing_output_template/0" do
     test "contains all the greatest hits" do
       attrs =
-        ~w(id title live_status original_url description aspect_ratio duration upload_date timestamp playlist_index filename)a
+        ~w(id title live_status original_url description aspect_ratio duration upload_date timestamp playlist_index filename availability)a
 
       formatted_attrs = "%(.{#{Enum.join(attrs, ",")}})j"
 

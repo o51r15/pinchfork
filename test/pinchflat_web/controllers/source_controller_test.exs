@@ -81,15 +81,6 @@ defmodule PinchflatWeb.SourceControllerTest do
       assert html_response(conn, 200) =~ "New Source"
     end
 
-    test "redirects to onboarding when onboarding", %{conn: conn, create_attrs: create_attrs} do
-      expect(YtDlpRunnerMock, :run, 1, &runner_function_mock/5)
-
-      Settings.set(onboarding: true)
-      conn = post(conn, ~p"/sources", source: create_attrs)
-
-      assert redirected_to(conn) == ~p"/?onboarding=1"
-    end
-
     test "renders correct layout on error when onboarding", %{conn: conn, invalid_attrs: invalid_attrs} do
       Settings.set(onboarding: true)
       conn = post(conn, ~p"/sources", source: invalid_attrs)

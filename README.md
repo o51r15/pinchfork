@@ -18,6 +18,7 @@ A PostgreSQL-backed fork of [Pinchflat](https://github.com/kieraneglin/pinchflat
 > **Active fork** — the upstream project entered a development pause in September 2025. This fork continues with new features, bug fixes, and infrastructure improvements. See the [Fork Changes](https://github.com/o51r15/pinchfork/wiki/Fork-Changes) wiki page for a full breakdown.
 
 ## What It Does
+
 Pinchfork downloads YouTube content via [yt-dlp](https://github.com/yt-dlp/yt-dlp) on a schedule. You set up rules for channels or playlists — it handles the rest, periodically checking for new content and organizing downloads for use with media center apps (Plex, Jellyfin, Kodi) or direct playback.
 
 Unlike one-off downloaders, Pinchfork is designed for ongoing library management: automatic re-downloads, content aging policies, quality upgrades, and a Sonarr-style UI for browsing your collection.
@@ -42,6 +43,7 @@ Unlike one-off downloaders, Pinchfork is designed for ongoing library management
 - **Custom yt-dlp Options** — pass any yt-dlp flag per source
 - **Custom Lifecycle Scripts** — hook into download events (alpha)
 - **Per-Source Client Override** — cookie behaviour and video client override for SABR bypass
+
 ## Quick Start
 
 ### Docker Compose (recommended)
@@ -113,21 +115,22 @@ volumes:
 
 ## Configuration
 
-| Setting | Required | Default | Description |
-|---------|----------|---------|-------------|
-| `DATABASE_URL` | **Yes** | — | Postgres connection string: `ecto://user:pass@host/db` |
-| `TZ` | No | `UTC` | IANA timezone format |
-| `POOL_SIZE` | No | `10` | Postgres connection pool size |
-| `LOG_LEVEL` | No | `debug` | `debug` or `info` |
-| `UMASK` | No | `022` | Unraid users may want `000` |
-| `BASIC_AUTH_USERNAME` | No | — | Enables basic auth (both username and password required) |
-| `BASIC_AUTH_PASSWORD` | No | — | Enables basic auth (both username and password required) |
-| `EXPOSE_FEED_ENDPOINTS` | No | `false` | Enable RSS feed endpoints |
-| `ENABLE_IPV6` | No | `false` | Any non-blank value enables |
-| `BASE_ROUTE_PATH` | No | `/` | Base path for reverse proxy subdirectory deployments |
-| `YT_DLP_WORKER_CONCURRENCY` | No | `2` | yt-dlp workers per queue. Set to `1` if getting IP limited |
-| `YT_DLP_VERSION` | No | `stable` | `stable`, `nightly`, `master`, `pinned`/`none`, or specific version |
-| `ENABLE_PROMETHEUS` | No | `false` | Any non-blank value enables |
+| Setting                     | Required | Default  | Description                                                         |
+| --------------------------- | -------- | -------- | ------------------------------------------------------------------- |
+| `DATABASE_URL`              | **Yes**  | —        | Postgres connection string: `ecto://user:pass@host/db`              |
+| `TZ`                        | No       | `UTC`    | IANA timezone format                                                |
+| `POOL_SIZE`                 | No       | `10`     | Postgres connection pool size                                       |
+| `LOG_LEVEL`                 | No       | `debug`  | `debug` or `info`                                                   |
+| `UMASK`                     | No       | `022`    | Unraid users may want `000`                                         |
+| `BASIC_AUTH_USERNAME`       | No       | —        | Enables basic auth (both username and password required)            |
+| `BASIC_AUTH_PASSWORD`       | No       | —        | Enables basic auth (both username and password required)            |
+| `EXPOSE_FEED_ENDPOINTS`     | No       | `false`  | Enable RSS feed endpoints                                           |
+| `ENABLE_IPV6`               | No       | `false`  | Any non-blank value enables                                         |
+| `BASE_ROUTE_PATH`           | No       | `/`      | Base path for reverse proxy subdirectory deployments                |
+| `YT_DLP_WORKER_CONCURRENCY` | No       | `2`      | yt-dlp workers per queue. Set to `1` if getting IP limited          |
+| `YT_DLP_VERSION`            | No       | `stable` | `stable`, `nightly`, `master`, `pinned`/`none`, or specific version |
+| `ENABLE_PROMETHEUS`         | No       | `false`  | Any non-blank value enables                                         |
+
 For a full breakdown of env vars added/removed and Oban behavior changes, see [Fork Changes — Configuration differences from upstream](https://github.com/o51r15/pinchfork/wiki/Fork-Changes#configuration-differences-from-upstream) on the wiki.
 
 > **Reverse proxies:** Pinchfork makes heavy use of websockets for real-time updates. Ensure your reverse proxy is configured to support websockets.

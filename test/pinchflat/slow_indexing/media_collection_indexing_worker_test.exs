@@ -219,6 +219,8 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorkerTest do
         |> Repo.preload(:media_items)
         |> Map.get(:media_items)
         |> Enum.map(fn media_item -> media_item.media_id end)
+        # Postgres returns preloads in no guaranteed order
+        |> Enum.sort()
       end
 
       assert_changed([from: [], to: ["video1", "video2", "video3"]], media_item_fetcher, fn ->
