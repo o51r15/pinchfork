@@ -10,7 +10,8 @@ Application.put_env(:pinchflat, :http_client, HTTPClientMock)
 Mox.defmock(UserScriptRunnerMock, for: Pinchflat.Lifecycle.UserScripts.UserScriptCommandRunner)
 Application.put_env(:pinchflat, :user_script_runner, UserScriptRunnerMock)
 
-ExUnit.start()
+# Page snapshots for visual review are opt-in: `mix test --only snapshot`
+ExUnit.start(exclude: [:snapshot])
 Ecto.Adapters.SQL.Sandbox.mode(Pinchflat.Repo, :manual)
 Faker.start()
 

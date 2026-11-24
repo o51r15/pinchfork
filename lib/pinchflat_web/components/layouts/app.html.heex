@@ -1,12 +1,20 @@
-<div class="flex h-screen overflow-hidden">
-  <% current_path =
-    if assigns[:conn], do: Phoenix.Controller.current_path(assigns.conn), else: assigns[:current_path] || "" %>
-  <.sidebar current_path={current_path} />
+<% shell = PinchflatWeb.Layouts.shell_assigns(assigns) %>
+<div class="flex h-screen overflow-hidden bg-bg">
+  <.sidebar
+    current_path={shell.current_path}
+    discovery_enabled={shell.discovery_enabled}
+    running_count={shell.running_count}
+  />
 
-  <div class="relative flex flex-1 flex-col overflow-y-auto overflow-x-hidden">
-    <.header params={if assigns[:conn], do: assigns.conn.params, else: %{}} />
+  <div class="relative flex min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden">
+    <.header
+      params={shell.params}
+      running_count={shell.running_count}
+      yt_dlp_version={shell.yt_dlp_version}
+      current_user={shell.current_user}
+    />
     <main>
-      <div class="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-10">
+      <div class="mx-auto max-w-screen-2xl p-4 md:p-6 2xl:p-8">
         <%!-- assigns[:flash]: error pages (e.g. an invalid CSRF token) can render this layout
              before the flash was fetched; @flash would raise KeyError and turn a 403 into a 500. --%>
         <.flash_group flash={assigns[:flash] || %{}} />

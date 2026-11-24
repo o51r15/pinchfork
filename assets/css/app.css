@@ -2,20 +2,117 @@
 @import 'tailwindcss/components';
 @import 'tailwindcss/utilities';
 
-@import './satoshi';
+/* Geist (SIL Open Font License, see priv/static/fonts/GEIST-LICENSE.txt), self-hosted */
+@font-face {
+  font-family: 'Geist';
+  src: url('../fonts/geist-latin-wght.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-/* This file is for your main application CSS */
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('../fonts/geist-mono-latin-wght.woff2') format('woff2');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
+  Theme tokens. Values are RGB triplets so Tailwind opacity modifiers work.
+  Brand: Pinchfork Teal. Dark accent #14B8A6 carries dark text (7.6:1);
+  light accent #0F766E carries white text (5.5:1).
+*/
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --c-bg: 15 17 21;
+  --c-surface: 23 26 33;
+  --c-surface-2: 31 35 44;
+  --c-surface-3: 40 45 56;
+  --c-border: 42 47 58;
+  --c-fg: 230 232 236;
+  --c-muted: 154 161 173;
+  --c-accent: 20 184 166;
+  --c-on-accent: 15 17 21;
+  --c-ok: 34 197 94;
+  --c-warn: 245 158 11;
+  --c-bad: 248 113 113;
+  --c-info: 96 165 250;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --c-bg: 247 248 250;
+  --c-surface: 255 255 255;
+  --c-surface-2: 241 243 246;
+  --c-surface-3: 229 232 237;
+  --c-border: 227 230 235;
+  --c-fg: 21 24 33;
+  --c-muted: 91 100 114;
+  --c-accent: 15 118 110;
+  --c-on-accent: 255 255 255;
+  --c-ok: 21 128 61;
+  --c-warn: 180 83 9;
+  --c-bad: 185 28 28;
+  --c-info: 29 78 216;
+}
+
 [x-cloak] {
   display: none !important;
 }
 
 @layer base {
   body {
-    @apply relative z-1 bg-whiten font-satoshi text-base font-normal text-body;
+    @apply relative z-1 bg-bg font-sans text-[15px] font-normal text-fg antialiased;
+    font-feature-settings: 'ss01', 'cv11';
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply tracking-tight;
+  }
+
+  a {
+    @apply transition-colors;
+  }
+
+  :focus-visible {
+    @apply outline-none ring-2 ring-accent ring-offset-2 ring-offset-bg;
+  }
+
+  ::selection {
+    @apply bg-accent/30;
   }
 }
 
 @layer components {
+  /* Card: the standard surface for grouped content */
+  .pf-card {
+    @apply rounded-[10px] border border-line bg-surface;
+  }
+
+  .pf-input {
+    @apply h-10 w-full rounded-lg border border-line bg-surface-2 px-3 text-sm text-fg placeholder:text-muted
+      transition-colors focus:border-accent focus:outline-none focus:ring-0
+      disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .pf-nav-link {
+    @apply flex h-10 items-center gap-2.5 rounded-lg px-3 text-sm font-medium text-muted transition-colors
+      hover:bg-surface-2 hover:text-fg;
+  }
+
+  .pf-nav-link-active {
+    @apply bg-accent-soft text-fg;
+  }
+
+  .pf-chip {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold;
+  }
 }
 
 @layer utilities {
@@ -27,5 +124,9 @@
   .no-scrollbar {
     -ms-overflow-style: none; /* IE and Edge */
     scrollbar-width: none; /* Firefox */
+  }
+
+  .tabular {
+    font-variant-numeric: tabular-nums;
   }
 }

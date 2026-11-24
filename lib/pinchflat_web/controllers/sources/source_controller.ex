@@ -68,15 +68,15 @@ defmodule PinchflatWeb.Sources.SourceController do
       |> put_resp_content_type(mime_type)
       |> send_file(200, poster_path)
     else
-      initial = (source.custom_name || source.collection_name || "?") |> String.first() |> String.upcase()
+      initials = poster_initials(source.custom_name || source.collection_name || "?")
 
+      # Neutral, semi-transparent colors so the placeholder suits both light and dark themes
       svg = """
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 300">
-        <rect width="200" height="300" fill="#1c2333"/>
-        <text x="100" y="175" text-anchor="middle" dominant-baseline="middle"
-              font-size="110" font-family="sans-serif" font-weight="bold" fill="#374151">
-          #{initial}
-        </text>
+        <rect width="200" height="300" fill="#7f8796" fill-opacity="0.14"/>
+        <text x="100" y="160" text-anchor="middle" dominant-baseline="middle"
+              font-size="72" font-family="Geist, system-ui, sans-serif" font-weight="700"
+              letter-spacing="-2" fill="#7f8796" fill-opacity="0.75">#{initials}</text>
       </svg>
       """
 
@@ -112,13 +112,7 @@ defmodule PinchflatWeb.Sources.SourceController do
     else
       svg = """
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 720">
-        <defs>
-          <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0%" stop-color="#111827"/>
-            <stop offset="100%" stop-color="#1f2937"/>
-          </linearGradient>
-        </defs>
-        <rect width="1280" height="720" fill="url(#bg)"/>
+        <rect width="1280" height="720" fill="#7f8796" fill-opacity="0.12"/>
       </svg>
       """
 
@@ -464,6 +458,21 @@ defmodule PinchflatWeb.Sources.SourceController do
     conn
     |> put_flash(:info, message)
     |> redirect(to: ~p"/sources/#{source}")
+  end
+
+  # "The Why Files" -> "TW"; letters only, so nothing needs escaping inside the SVG
+  defp poster_initials(name) do
+    name
+    |> String.split(~r/\s+/, trim: true)
+    |> Enum.map(&String.first/1)
+    |> Enum.filter(&(&1 =~ ~r/^[[:alnum:]]$/u))
+    |> Enum.take(2)
+    |> Enum.join()
+    |> String.upcase()
+    |> case do
+      "" -> "?"
+      initials -> initials
+    end
   end
 
   defp media_profiles do

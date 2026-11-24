@@ -40,13 +40,29 @@ defmodule PinchflatWeb.ConnCase do
     end
   end
 
+  # Every test runs signed in as a user unless tagged `@tag :unauthenticated`, which gives a
+  # plain conn and no user (for testing the sign-in and setup flows themselves).
   setup tags do
     TestingHelperMethods.create_platform_directories()
     Pinchflat.DataCase.setup_sandbox(tags)
 
-    conn = Phoenix.ConnTest.build_conn()
-    session_conn = Plug.Test.init_test_session(conn, %{})
+    if tags[:unauthenticated] do
+      conn = Phoenix.ConnTest.build_conn()
+      {:ok, conn: conn, session_conn: Plug.Test.init_test_session(conn, %{})}
+    else
+      user = Pinchflat.AccountsFixtures.user_fixture()
+      token = Pinchflat.Accounts.generate_user_session_token(user)
+      conn = Plug.Test.init_test_session(Phoenix.ConnTest.build_conn(), %{user_token: token})
 
-    {:ok, conn: conn, session_conn: session_conn}
+      {:ok, conn: conn, session_conn: conn, user: user}
+    end
+  end
+
+  @doc """
+  Signs a conn in as the given user.
+  """
+  def log_in_user(conn, user) do
+    token = Pinchflat.Accounts.generate_user_session_token(user)
+    Plug.Test.init_test_session(conn, %{user_token: token})
   end
 end

@@ -1,31 +1,116 @@
-<header class="sticky top-0 z-999 flex min-h-20 w-full bg-white drop-shadow-1 dark:bg-boxdark dark:drop-shadow-none">
-  <div class="flex flex-grow items-center justify-between lg:justify-end px-4 py-4 shadow-2 md:px-6 2xl:px-11">
-    <div class="flex items-center gap-2 sm:gap-4 lg:hidden w-2/6">
-      <section class="pr-1">
-        <img src={~p"/images/pinchfork-icon.png"} alt="Pinchfork" class="w-10 h-10" />
-      </section>
+<header class="sticky top-0 z-999 flex min-h-16 w-full items-center gap-3 border-b border-line bg-surface/95 px-4 py-3 backdrop-blur md:px-6">
+  <button
+    type="button"
+    class="rounded-lg border border-line p-2 text-fg hover:bg-surface-2 lg:hidden"
+    @click.stop="sidebarVisible = !sidebarVisible"
+    aria-label="Open menu"
+  >
+    <.icon name="hero-bars-3" class="h-5 w-5" />
+  </button>
 
+  <form action={~p"/search"} class="min-w-0 flex-1 md:max-w-md" role="search">
+    <label class="flex h-10 items-center gap-2 rounded-lg border border-line bg-surface-2 px-3 text-muted focus-within:border-accent">
+      <.icon name="hero-magnifying-glass" class="h-4 w-4 shrink-0" />
+      <input
+        id="global-search"
+        type="text"
+        name="q"
+        value={@params["q"]}
+        placeholder="Search all media"
+        aria-label="Search all media"
+        class="min-w-0 flex-1 border-0 bg-transparent p-0 text-sm text-fg placeholder:text-muted focus:outline-none focus:ring-0"
+        x-on:keydown.window.slash="if (!['INPUT','TEXTAREA','SELECT'].includes(document.activeElement.tagName)) { $event.preventDefault(); $el.focus() }"
+      />
+      <kbd class="hidden rounded border border-line px-1.5 font-mono text-[11px] sm:inline">/</kbd>
+    </label>
+  </form>
+
+  <div class="ml-auto flex items-center gap-2">
+    <.link
+      :if={@running_count > 0}
+      href={~p"/activity"}
+      class="hidden h-10 items-center gap-2 rounded-lg border border-line px-3 text-sm font-medium text-fg hover:bg-surface-2 sm:flex"
+    >
+      <.icon name="hero-arrow-down-tray" class="h-4 w-4 text-accent" />
+      <span class="tabular">{@running_count} running</span>
+    </.link>
+
+    <button
+      type="button"
+      class="grid h-10 w-10 place-items-center rounded-lg border border-line text-fg hover:bg-surface-2"
+      aria-label="Switch between light and dark theme"
+      x-data
+      @click="
+        const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', next);
+        try { localStorage.setItem('pf-theme', next) } catch (e) {}
+      "
+    >
+      <.icon name="hero-sun" class="h-5 w-5" />
+    </button>
+
+    <div class="relative" x-data="{ open: false }" @click.outside="open = false">
       <button
-        class="z-99999 block mx-2 rounded-sm border border-stroke bg-white p-1.5 shadow-sm dark:border-strokedark dark:bg-boxdark lg:hidden"
-        @click.stop="sidebarVisible = !sidebarVisible"
+        type="button"
+        class="grid h-10 w-10 place-items-center rounded-lg border border-line text-fg hover:bg-surface-2"
+        aria-label="Help and version information"
+        @click="open = !open"
+        x-bind:aria-expanded="open"
       >
-        <.icon name="hero-bars-3" />
+        <.icon name="hero-question-mark-circle" class="h-5 w-5" />
       </button>
+      <div
+        x-cloak
+        x-show="open"
+        x-transition.origin.top.right
+        class="absolute right-0 mt-2 w-64 rounded-xl border border-line bg-surface p-2 shadow-xl"
+      >
+        <.link href="https://github.com/o51r15/pinchfork/wiki" target="_blank" class="pf-nav-link h-9">
+          <.icon name="hero-book-open" class="h-4 w-4" /> Documentation
+        </.link>
+        <.link href="https://github.com/o51r15/pinchfork" target="_blank" class="pf-nav-link h-9">
+          <.icon name="si-github" class="h-4 w-4" /> Pinchfork on GitHub
+        </.link>
+        <.link href="https://github.com/kieraneglin/pinchflat" target="_blank" class="pf-nav-link h-9">
+          <.icon name="hero-heart" class="h-4 w-4" /> Pinchflat (the original)
+        </.link>
+        <div class="mt-1 border-t border-line px-3 pt-2 pb-1 text-xs leading-6 text-muted">
+          <div class="flex justify-between">
+            <span>Pinchfork</span><span class="font-mono">v{Application.spec(:pinchflat)[:vsn]}</span>
+          </div>
+          <div class="flex justify-between">
+            <span>yt-dlp</span><span class="font-mono">{@yt_dlp_version}</span>
+          </div>
+        </div>
+      </div>
     </div>
-    <div class="bg-meta-4 rounded-md w-4/6 lg:w-3/6 xl:w-2/6">
-      <div class="relative">
-        <span class="absolute left-2 top-1/2 -translate-y-1/2 flex">
-          <.icon name="hero-magnifying-glass" />
-        </span>
-        <form action={~p"/search"}>
-          <input
-            type="text"
-            name="q"
-            value={@params["q"]}
-            placeholder="Search all media..."
-            class="w-full bg-transparent pl-9 pr-4 border-0 focus:ring-0 focus:outline-none"
-          />
-        </form>
+
+    <div :if={@current_user} class="relative" x-data="{ open: false }" @click.outside="open = false">
+      <button
+        type="button"
+        class="grid h-10 w-10 place-items-center rounded-full bg-accent-soft text-sm font-semibold uppercase text-accent hover:ring-2 hover:ring-accent/40"
+        aria-label="Account menu"
+        @click="open = !open"
+        x-bind:aria-expanded="open"
+      >
+        {String.first(@current_user.username)}
+      </button>
+      <div
+        x-cloak
+        x-show="open"
+        x-transition.origin.top.right
+        class="absolute right-0 mt-2 w-56 rounded-xl border border-line bg-surface p-2 shadow-xl"
+      >
+        <div class="px-3 py-2 text-sm">
+          <div class="text-xs text-muted">Signed in as</div>
+          <div class="truncate font-semibold">{@current_user.username}</div>
+        </div>
+        <.link href={~p"/settings"} class="pf-nav-link h-9">
+          <.icon name="hero-cog-6-tooth" class="h-4 w-4" /> Settings
+        </.link>
+        <.link href={~p"/logout"} method="delete" class="pf-nav-link h-9">
+          <.icon name="hero-arrow-right-on-rectangle" class="h-4 w-4" /> Sign out
+        </.link>
       </div>
     </div>
   </div>

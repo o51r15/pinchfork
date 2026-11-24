@@ -6,17 +6,8 @@ defmodule PinchflatWeb.Pages.PageController do
   alias Pinchflat.Sources.Source
   alias Pinchflat.Profiles.MediaProfile
 
-  def home(conn, params) do
-    done_onboarding = params["onboarding"] == "0"
-    force_onboarding = params["onboarding"] == "1"
-
-    if done_onboarding, do: Settings.set(onboarding: false)
-
-    if force_onboarding || Settings.get!(:onboarding) do
-      render_onboarding_page(conn)
-    else
-      redirect(conn, to: ~p"/sources")
-    end
+  def home(conn, _params) do
+    redirect(conn, to: PinchflatWeb.UserAuth.after_sign_in_path())
   end
 
   def stats(conn, _params) do
@@ -32,16 +23,5 @@ defmodule PinchflatWeb.Pages.PageController do
 
   def activity(conn, _params) do
     render(conn, :activity)
-  end
-
-  defp render_onboarding_page(conn) do
-    Settings.set(onboarding: true)
-
-    conn
-    |> render(:onboarding_checklist,
-      media_profiles_exist: Repo.exists?(MediaProfile),
-      sources_exist: Repo.exists?(Source),
-      layout: {Layouts, :onboarding}
-    )
   end
 end

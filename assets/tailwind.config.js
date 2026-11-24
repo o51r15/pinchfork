@@ -6,13 +6,19 @@ const defaultTheme = require('tailwindcss/defaultTheme')
 const fs = require('fs')
 const path = require('path')
 
+// A theme color backed by an RGB-triplet CSS variable, so opacity modifiers (bg-fg/10) work
+const tok = (name) => `rgb(var(--c-${name}) / <alpha-value>)`
+
 module.exports = {
   content: ['./js/**/*.js', '../lib/pinchflat_web.ex', '../lib/pinchflat_web/**/*.*ex'],
   darkMode: 'class',
   theme: {
     fontFamily: {
-      satoshi: ['Satoshi', 'sans-serif'],
-      ...defaultTheme.fontFamily
+      ...defaultTheme.fontFamily,
+      sans: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+      mono: ['Geist Mono', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
+      // Legacy name kept so older templates using font-satoshi still get the new font
+      satoshi: ['Geist', 'ui-sans-serif', 'system-ui', 'sans-serif']
     },
     screens: {
       '2xsm': '375px',
@@ -21,42 +27,78 @@ module.exports = {
       ...defaultTheme.screens
     },
     extend: {
+      // Every color comes from a CSS variable in assets/css/app.css, so light and dark themes
+      // swap by changing data-theme on <html>. The old TailAdmin names are kept as aliases of
+      // the new semantic tokens so existing templates follow the theme without a rewrite.
       colors: {
         current: 'currentColor',
         transparent: 'transparent',
-        white: '#FFFFFF',
-        black: '#1C2434',
+        // Semantic tokens (use these in new code)
+        bg: tok('bg'),
+        surface: tok('surface'),
+        'surface-2': tok('surface-2'),
+        'surface-3': tok('surface-3'),
+        line: tok('border'),
+        fg: tok('fg'),
+        muted: tok('muted'),
+        accent: tok('accent'),
+        'accent-soft': 'rgb(var(--c-accent) / 0.14)',
+        onaccent: tok('on-accent'),
+        ok: tok('ok'),
+        warn: tok('warn'),
+        bad: tok('bad'),
+        info: tok('info'),
+        // Legacy TailAdmin aliases
+        white: tok('fg'),
+        black: tok('surface-2'),
         'black-2': '#010101',
-        body: '#64748B',
-        bodydark: '#AEB7C0',
-        bodydark1: '#DEE4EE',
-        bodydark2: '#8A99AF',
-        primary: '#3C50E0',
-        secondary: '#80CAEE',
-        stroke: '#E2E8F0',
-        gray: '#EFF4FB',
-        graydark: '#333A48',
-        'gray-2': '#F7F9FC',
-        'gray-3': '#FAFAFA',
-        whiten: '#F1F5F9',
-        whiter: '#F5F7FD',
-        boxdark: '#24303F',
-        'boxdark-2': '#1A222C',
-        strokedark: '#2E3A47',
-        'form-strokedark': '#3d4d60',
-        'form-input': '#1d2a39',
-        'meta-1': '#DC3545',
-        'meta-2': '#EFF2F7',
-        'meta-3': '#10B981',
-        'meta-4': '#313D4A',
-        'meta-5': '#259AE6',
-        'meta-6': '#FFBA00',
-        'meta-7': '#FF6766',
-        'meta-8': '#F0950C',
-        'meta-9': '#E5E7EB',
-        success: '#219653',
-        danger: '#D34053',
-        warning: '#FFA70B'
+        body: tok('muted'),
+        bodydark: tok('muted'),
+        bodydark1: tok('fg'),
+        bodydark2: tok('muted'),
+        primary: tok('accent'),
+        secondary: tok('info'),
+        stroke: tok('border'),
+        gray: {
+          DEFAULT: tok('surface-2'),
+          300: tok('muted'),
+          400: tok('muted'),
+          500: tok('muted'),
+          600: tok('border'),
+          700: tok('surface-3'),
+          800: tok('surface-2')
+        },
+        // Status hues used by older pages follow the theme too. Darker reds (600+) stay
+        // real reds because danger buttons use them with white text.
+        green: { 300: tok('ok'), 400: tok('ok'), 500: tok('ok'), 600: tok('ok') },
+        emerald: { 400: tok('ok'), 500: tok('ok') },
+        red: { 300: tok('bad'), 400: tok('bad'), 500: tok('bad') },
+        blue: { 300: tok('info'), 400: tok('info'), 500: tok('info') },
+        yellow: { 400: tok('warn'), 500: tok('warn') },
+        amber: { 400: tok('warn'), 500: tok('warn') },
+        orange: { 400: tok('warn'), 500: tok('warn') },
+        graydark: tok('surface-3'),
+        'gray-2': tok('surface-2'),
+        'gray-3': tok('surface-2'),
+        whiten: tok('bg'),
+        whiter: tok('surface-2'),
+        boxdark: tok('surface'),
+        'boxdark-2': tok('bg'),
+        strokedark: tok('border'),
+        'form-strokedark': tok('border'),
+        'form-input': tok('surface-2'),
+        'meta-1': tok('bad'),
+        'meta-2': tok('surface-2'),
+        'meta-3': tok('surface-3'),
+        'meta-4': tok('surface-2'),
+        'meta-5': tok('info'),
+        'meta-6': tok('warn'),
+        'meta-7': tok('bad'),
+        'meta-8': tok('warn'),
+        'meta-9': tok('border'),
+        success: tok('ok'),
+        danger: tok('bad'),
+        warning: tok('warn')
       },
       fontSize: {
         'title-xxl': ['44px', '55px'],

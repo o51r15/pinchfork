@@ -1,12 +1,12 @@
 defmodule PinchflatWeb.Router do
   use PinchflatWeb, :router
   import PinchflatWeb.Plugs
+  import PinchflatWeb.UserAuth
   import Phoenix.LiveDashboard.Router
 
   # IMPORTANT: `strip_trailing_extension` in endpoint.ex removes
   # the extension from the path
   pipeline :browser do
-    plug :basic_auth
     plug :accepts, ["html"]
     plug :fetch_session
     plug :fetch_live_flash
@@ -14,6 +14,7 @@ defmodule PinchflatWeb.Router do
     plug :protect_from_forgery
     plug :put_secure_browser_headers
     plug :allow_iframe_embed
+    plug :fetch_current_user
   end
 
   pipeline :api do
@@ -28,7 +29,8 @@ defmodule PinchflatWeb.Router do
   end
 
   # Routes in here _may not be_ protected by basic auth. This is necessary for
-  # media streaming to work for RSS podcast feeds.
+  # media streaming to work for RSS podcast feeds. They are outside the sign-in
+  # system on purpose so podcast apps keep working.
   scope "/", PinchflatWeb do
     pipe_through :maybe_basic_auth
 
@@ -39,14 +41,35 @@ defmodule PinchflatWeb.Router do
     get "/media/:uuid/stream", MediaItems.MediaItemController, :stream
   end
 
+  # Sign-in and first-run account creation (no sign-in required)
+  scope "/", PinchflatWeb do
+    pipe_through [:browser, :redirect_if_user_is_authenticated]
+
+    get "/login", Auth.UserSessionController, :new
+    post "/login", Auth.UserSessionController, :create
+  end
+
   scope "/", PinchflatWeb do
     pipe_through :browser
+
+    get "/setup", Setup.SetupController, :account
+    post "/setup", Setup.SetupController, :create_account
+    delete "/logout", Auth.UserSessionController, :delete
+  end
+
+  # Everything else needs a signed-in user
+  scope "/", PinchflatWeb do
+    pipe_through [:browser, :require_authenticated_user]
 
     get "/", Pages.PageController, :home
     get "/stats", Pages.PageController, :stats
     get "/activity", Pages.PageController, :activity
 
-    live "/discovery", Discovery.DiscoveryLive, :index
+    live_session :authenticated, on_mount: [{PinchflatWeb.UserAuth, :ensure_authenticated}] do
+      live "/setup/:step", Setup.SetupLive, :show
+      live "/discovery", Discovery.DiscoveryLive, :index
+      live "/sources", Sources.SourceIndexLive, :index
+    end
 
     resources "/media_profiles", MediaProfiles.MediaProfileController
     resources "/search", Searches.SearchController, only: [:show], singleton: true
@@ -67,8 +90,6 @@ defmodule PinchflatWeb.Router do
     # Must be declared before resources "/sources" to avoid conflict with nested routes
     get "/sources/:id/poster", Sources.SourceController, :poster
     get "/sources/:id/fanart", Sources.SourceController, :fanart
-
-    live "/sources", Sources.SourceIndexLive, :index
 
     resources "/sources", Sources.SourceController, except: [:index] do
       post "/force_download_pending", Sources.SourceController, :force_download_pending
@@ -95,10 +116,11 @@ defmodule PinchflatWeb.Router do
   end
 
   scope "/dev" do
-    pipe_through :browser
+    pipe_through [:browser, :require_authenticated_user]
 
     live_dashboard "/dashboard",
       metrics: PinchflatWeb.Telemetry,
-      ecto_repos: [Pinchflat.Repo]
+      ecto_repos: [Pinchflat.Repo],
+      on_mount: [{PinchflatWeb.UserAuth, :ensure_authenticated}]
   end
 end

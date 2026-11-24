@@ -6,16 +6,19 @@ defmodule PinchflatWeb.CustomComponents.ButtonComponents do
   alias PinchflatWeb.CustomComponents.TextComponents
 
   @doc """
-  Render a button
+  Render a button.
+
+  `color` takes a background class. `bg-primary` (the default) renders the brand button with
+  the theme's on-accent text; any other background gets the normal text color.
+  `rounding` is accepted for older callers but every button now uses the same radius.
 
   ## Examples
 
-      <.button color="bg-primary" rounding="rounded-sm">
-        <span>Click me</span>
-      </.button>
+      <.button>Save</.button>
+      <.button color="bg-meta-4 hover:bg-meta-3">Cancel</.button>
   """
   attr :color, :string, default: "bg-primary"
-  attr :rounding, :string, default: "rounded-sm"
+  attr :rounding, :string, default: "rounded-lg"
   attr :class, :string, default: ""
   attr :type, :string, default: "submit"
   attr :disabled, :boolean, default: false
@@ -24,14 +27,16 @@ defmodule PinchflatWeb.CustomComponents.ButtonComponents do
   slot :inner_block, required: true
 
   def button(assigns) do
+    assigns = assign(assigns, :text_color, text_color_for(assigns.color))
+
     ~H"""
     <button
       class={[
-        "text-center font-medium text-white whitespace-nowrap",
-        "#{@rounding} inline-flex items-center justify-center px-8 py-4",
-        "#{@color}",
-        "hover:bg-opacity-90 lg:px-8 xl:px-10",
-        "disabled:bg-opacity-50 disabled:cursor-not-allowed disabled:text-grey-5",
+        "inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4",
+        "text-center text-sm font-semibold transition-colors",
+        @color,
+        @text_color,
+        "hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50",
         @class
       ]}
       type={@type}
@@ -41,6 +46,15 @@ defmodule PinchflatWeb.CustomComponents.ButtonComponents do
       {render_slot(@inner_block)}
     </button>
     """
+  end
+
+  defp text_color_for(color) do
+    cond do
+      String.contains?(color, ["bg-primary", "bg-accent"]) -> "text-onaccent"
+      # Danger buttons (bg-red-*, bg-danger) are dark enough for white text in both themes
+      String.contains?(color, ["bg-red", "bg-danger", "bg-bad"]) -> "text-[#ffffff]"
+      true -> "text-fg border border-line"
+    end
   end
 
   @doc """
@@ -60,28 +74,31 @@ defmodule PinchflatWeb.CustomComponents.ButtonComponents do
   def button_dropdown(assigns) do
     ~H"""
     <div x-data="{ dropdownOpen: false }" class={["relative flex", @class]}>
-      <span
+      <button
+        type="button"
         x-on:click.prevent="dropdownOpen = !dropdownOpen"
+        x-bind:aria-expanded="dropdownOpen"
         class={[
-          "cursor-pointer inline-flex gap-2.5 rounded-md bg-primary px-5.5 py-3",
-          "font-medium text-white hover:bg-opacity-95"
+          "inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-line bg-surface px-4",
+          "text-sm font-semibold text-fg hover:bg-surface-2"
         ]}
       >
         {@text}
         <CoreComponents.icon
           name="hero-chevron-down"
-          class="fill-current duration-200 ease-linear mt-1"
+          class="h-4 w-4 duration-200 ease-linear"
           x-bind:class="dropdownOpen && 'rotate-180'"
         />
-      </span>
+      </button>
       <div
+        x-cloak
         x-show="dropdownOpen"
         x-on:click.outside="dropdownOpen = false"
-        class="absolute left-0 top-full z-40 mt-2 w-full rounded-md bg-black py-3 shadow-card"
+        class="absolute right-0 top-full z-40 mt-2 min-w-full rounded-xl border border-line bg-surface p-1.5 shadow-xl"
       >
         <ul class="flex flex-col">
           <li :for={option <- @option}>
-            <span class="flex px-5 py-2 font-medium text-bodydark2 hover:text-white cursor-pointer">
+            <span class="flex cursor-pointer whitespace-nowrap rounded-md px-3 py-2 text-sm text-fg hover:bg-surface-2">
               {render_slot(option)}
             </span>
           </li>
@@ -108,15 +125,15 @@ defmodule PinchflatWeb.CustomComponents.ButtonComponents do
     <TextComponents.tooltip position="bottom" tooltip={@tooltip} tooltip_class="text-nowrap">
       <button
         class={[
-          "flex justify-center items-center rounded-lg ",
-          "bg-form-input border-2 border-strokedark",
-          "hover:bg-meta-4 hover:border-form-strokedark",
+          "flex items-center justify-center rounded-lg border border-line bg-surface-2",
+          "text-fg transition-colors hover:bg-surface-3",
           @class
         ]}
         type="button"
+        aria-label={@tooltip}
         {@rest}
       >
-        <CoreComponents.icon name={@icon_name} class="text-stroke" />
+        <CoreComponents.icon name={@icon_name} />
       </button>
     </TextComponents.tooltip>
     """

@@ -1,0 +1,33 @@
+<div class="relative flex min-h-screen flex-col items-center justify-center gap-7 bg-bg px-4 py-10">
+  <button
+    type="button"
+    class="absolute right-5 top-5 grid h-10 w-10 place-items-center rounded-lg border border-line text-fg hover:bg-surface-2"
+    aria-label="Switch between light and dark theme"
+    x-data
+    @click="
+      const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('pf-theme', next) } catch (e) {}
+    "
+  >
+    <.icon name="hero-sun" class="h-5 w-5" />
+  </button>
+
+  <div class="flex flex-col items-center gap-3">
+    <.brand_mark class="h-12 w-12" />
+    <span class="text-2xl font-bold tracking-tight text-fg">Pinchfork</span>
+  </div>
+
+  <div class="w-full max-w-md">
+    <.flash_group flash={assigns[:flash] || %{}} />
+    {@inner_content}
+  </div>
+
+  <p class="max-w-sm text-center text-[13px] leading-5 text-muted">
+    Pinchfork is based on
+    <.link href="https://github.com/kieraneglin/pinchflat" target="_blank" class="text-accent hover:underline">
+      Pinchflat
+    </.link>
+    by Kieran Eglin.
+  </p>
+</div>

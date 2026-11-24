@@ -1,0 +1,33 @@
+<.setup_steps current={0} />
+
+<.form for={@form} action={~p"/setup"} class="pf-card mt-5 flex flex-col p-7">
+  <h1 class="text-[22px] font-semibold tracking-tight text-fg">Welcome to Pinchfork</h1>
+  <p class="mt-1.5 text-sm leading-6 text-muted">
+    Pinchfork keeps a local copy of the YouTube channels and playlists you choose, organised the way
+    Sonarr organises TV. Setup takes about five minutes. First, create the account you'll sign in with.
+  </p>
+
+  <div
+    :if={@env_username}
+    class="mt-4 rounded-lg border border-line bg-surface-2 px-3 py-2.5 text-[13px] leading-5 text-muted"
+  >
+    The username from your <code class="font-mono text-fg">BASIC_AUTH_USERNAME</code>
+    setting is filled in. Choose a new password for it here.
+  </div>
+
+  <.input field={@form[:username]} type="text" label="Username" autocomplete="username" required autofocus />
+  <div class="grid grid-cols-1 gap-x-4 sm:grid-cols-2">
+    <.input field={@form[:password]} type="password" label="Password" value="" autocomplete="new-password" required />
+    <.input
+      field={@form[:password_confirmation]}
+      type="password"
+      label="Confirm password"
+      value=""
+      autocomplete="new-password"
+      required
+    />
+  </div>
+  <.help>At least {@min_password} characters.</.help>
+
+  <.button class="mt-6 w-full">Create account</.button>
+</.form>

@@ -1,30 +1,33 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark" data-theme="dark">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content={get_csrf_token()} />
-    <.live_title>
+    <meta name="color-scheme" content="dark light" />
+    <%!-- Apply the saved or system theme before first paint so there is no flash --%>
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('pf-theme');
+          var theme = saved || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+          document.documentElement.setAttribute('data-theme', theme);
+        } catch (e) {}
+      })();
+    </script>
+    <.live_title suffix=" · Pinchfork">
       {assigns[:page_title] || "Pinchfork"}
     </.live_title>
+    <link rel="preload" href={~p"/fonts/geist-latin-wght.woff2"} as="font" type="font/woff2" crossorigin />
     <link phx-track-static rel="stylesheet" href={~p"/assets/app.css"} />
     <link rel="icon" type="image/x-icon" href={~p"/favicon.ico?cachebust=2024-03-20"} />
     <script defer phx-track-static type="text/javascript" src={~p"/assets/app.js"}>
     </script>
   </head>
   <body
-    x-data={"{ 
-      sidebarVisible: false,
-      proEnabled: #{Settings.get!(:pro_enabled)},
-      onboarding: #{Settings.get!(:onboarding)}
-    }"}
-    class="dark text-bodydark bg-boxdark-2"
+    x-data="{ sidebarVisible: false }"
     data-socket-path={Path.join(Application.get_env(:pinchflat, :base_route_path), "/live")}
   >
     {@inner_content}
-
-    <template x-if="!proEnabled && !onboarding">
-      <.upgrade_modal conn={@conn} />
-    </template>
   </body>
 </html>

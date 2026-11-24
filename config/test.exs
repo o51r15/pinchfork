@@ -11,6 +11,9 @@ config :pinchflat,
 
 config :pinchflat, Oban, testing: :manual
 
+# Cheap password hashing so the suite stays fast (production uses 210,000 iterations)
+config :pinchflat, password_iterations: 1_000
+
 # Configure your database
 #
 # The MIX_TEST_PARTITION environment variable can be used

@@ -22,6 +22,32 @@ defmodule Pinchflat.Release do
     {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :down, to: version))
   end
 
+  @doc """
+  Gives a user a new random password and prints it. Run from the host with:
+
+      docker exec -it pinchfork /app/bin/reset_password <username>
+  """
+  def reset_password(username) when is_binary(username) do
+    load_app()
+    Application.ensure_all_started(:ssl)
+
+    {:ok, _, _} =
+      Ecto.Migrator.with_repo(Pinchflat.Repo, fn _repo ->
+        case Pinchflat.Repo.get_by(Pinchflat.Accounts.User, username: username) do
+          nil ->
+            IO.puts("No user named #{inspect(username)}.")
+
+          user ->
+            new_password = 18 |> :crypto.strong_rand_bytes() |> Base.url_encode64(padding: false)
+            {:ok, _} = Pinchflat.Accounts.reset_user_password(user, new_password)
+            IO.puts("New password for #{user.username}: #{new_password}")
+            IO.puts("Sign in with it, then change it in Settings > General.")
+        end
+      end)
+
+    :ok
+  end
+
   def check_file_permissions do
     load_app()
 
