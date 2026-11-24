@@ -264,8 +264,15 @@ defmodule PinchflatWeb.Sources.SourceController do
 
     conn
     |> put_flash(:info, "Source deletion started. This may take a while to complete.")
-    |> redirect(to: ~p"/sources")
+    |> redirect(to: delete_return_path(params["return_to"]))
   end
+
+  # Only same-app media profile pages are accepted, so this can't become an open redirect
+  defp delete_return_path("/media_profiles/" <> rest = path) do
+    if String.match?(rest, ~r/\A\d+\z/), do: path, else: ~p"/sources"
+  end
+
+  defp delete_return_path(_), do: ~p"/sources"
 
   def force_download_pending(conn, %{"source_id" => id}) do
     wrap_forced_action(

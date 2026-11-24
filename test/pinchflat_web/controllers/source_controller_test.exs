@@ -129,6 +129,16 @@ defmodule PinchflatWeb.SourceControllerTest do
       assert redirected_to(conn) == ~p"/sources"
     end
 
+    test "returns to a media profile page when asked", %{conn: conn, source: source} do
+      conn = delete(conn, ~p"/sources/#{source}?return_to=/media_profiles/#{source.media_profile_id}")
+      assert redirected_to(conn) == "/media_profiles/#{source.media_profile_id}"
+    end
+
+    test "ignores return_to values that aren't profile pages", %{conn: conn, source: source} do
+      conn = delete(conn, ~p"/sources/#{source}?return_to=https://evil.example/media_profiles/1")
+      assert redirected_to(conn) == ~p"/sources"
+    end
+
     test "sets marked_for_deletion_at", %{conn: conn, source: source} do
       delete(conn, ~p"/sources/#{source}")
       assert Repo.reload!(source).marked_for_deletion_at

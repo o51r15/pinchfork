@@ -1,6 +1,7 @@
 defmodule PinchflatWeb.MediaProfileControllerTest do
   use PinchflatWeb.ConnCase
 
+  import Pinchflat.SourcesFixtures
   import Pinchflat.ProfilesFixtures
 
   alias Pinchflat.Repo
@@ -136,6 +137,57 @@ defmodule PinchflatWeb.MediaProfileControllerTest do
       delete(conn, ~p"/media_profiles/#{media_profile}?delete_files=true")
 
       assert [%{args: %{"delete_files" => true}}] = all_enqueued(worker: MediaProfileDeletionWorker)
+    end
+  end
+
+  describe "delete media_profile when sources use it" do
+    setup [:create_media_profile]
+
+    setup %{media_profile: media_profile} do
+      source = source_fixture(media_profile_id: media_profile.id, custom_name: "Woodworking Weekly")
+
+      %{source: source}
+    end
+
+    test "does not delete the profile", %{conn: conn, media_profile: media_profile} do
+      conn = delete(conn, ~p"/media_profiles/#{media_profile}")
+
+      assert redirected_to(conn) == ~p"/media_profiles/#{media_profile}"
+      assert Phoenix.Flash.get(conn.assigns.flash, :error) =~ "used by 1 source"
+      refute Repo.reload!(media_profile).marked_for_deletion_at
+      assert [] = all_enqueued(worker: MediaProfileDeletionWorker)
+    end
+
+    test "allows deletion once the only source is being deleted", %{conn: conn, media_profile: media_profile} do
+      Repo.update_all(Pinchflat.Sources.Source, set: [marked_for_deletion_at: DateTime.utc_now()])
+
+      conn = delete(conn, ~p"/media_profiles/#{media_profile}")
+
+      assert redirected_to(conn) == ~p"/media_profiles"
+      assert Repo.reload!(media_profile).marked_for_deletion_at
+    end
+
+    test "the show page lists the sources with edit and delete links", %{
+      conn: conn,
+      media_profile: media_profile,
+      source: source
+    } do
+      html = conn |> get(~p"/media_profiles/#{media_profile}") |> html_response(200)
+
+      assert html =~ "Used by 1 source"
+      assert html =~ "Woodworking Weekly"
+      assert html =~ ~s(href="/sources/#{source.id}/edit")
+      assert html =~ "return_to=/media_profiles/#{media_profile.id}"
+      assert html =~ "This profile is in use"
+      refute html =~ "Nothing uses this profile"
+    end
+
+    test "the show page offers deletion when nothing uses the profile", %{conn: conn} do
+      unused = media_profile_fixture()
+      html = conn |> get(~p"/media_profiles/#{unused}") |> html_response(200)
+
+      assert html =~ "No sources use this profile"
+      assert html =~ "Nothing uses this profile"
     end
   end
 

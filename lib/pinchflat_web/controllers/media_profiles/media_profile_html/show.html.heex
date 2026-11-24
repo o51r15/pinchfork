@@ -1,44 +1,102 @@
-<div class="mb-6 flex gap-3 flex-row items-center justify-between">
-  <div class="flex items-center min-w-0">
-    <.link href={~p"/media_profiles"}>
-      <.icon name="hero-arrow-left" class="w-10 h-10 hover:dark:text-white" />
-    </.link>
-    <h2 class="text-title-md2 font-bold text-black dark:text-white ml-2 truncate">
-      {@media_profile.name}
-    </h2>
-  </div>
+<.link href={~p"/media_profiles"} class="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+  <.icon name="hero-arrow-left" class="h-4 w-4" /> Media profiles
+</.link>
 
-  <nav class="flex items-center gap-2 flex-shrink-0">
-    <.link href={~p"/media_profiles/new?template_id=#{@media_profile}"} method="get">
-      <.button rounding="rounded-lg">Use as Template</.button>
-    </.link>
-    <.link href={~p"/media_profiles/#{@media_profile}/edit"}>
-      <.button color="bg-primary" rounding="rounded-lg">
-        <.icon name="hero-pencil-square" class="mr-2" />Edit
+<.page_header title={@media_profile.name}>
+  <p class="mt-1 font-mono text-[13px] text-muted break-all">{@media_profile.output_path_template}</p>
+  <:actions>
+    <.link href={~p"/media_profiles/new?template_id=#{@media_profile}"}>
+      <.button color="bg-transparent">
+        <.icon name="hero-document-duplicate" class="mr-2 h-4 w-4" /> Use as template
       </.button>
     </.link>
-  </nav>
-</div>
+    <.link href={~p"/media_profiles/#{@media_profile}/edit"}>
+      <.button color="bg-primary">
+        <.icon name="hero-pencil-square" class="mr-2 h-4 w-4" /> Edit
+      </.button>
+    </.link>
+  </:actions>
+</.page_header>
 
-<div class="rounded-sm border border-stroke bg-white px-5 pb-2.5 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5 xl:pb-1">
-  <div class="max-w-full">
-    <.tabbed_layout>
-      <:tab title="Sources" id="sources">
-        <.table rows={@sources} table_class="text-black dark:text-white">
-          <:col :let={source} label="Name">
-            <.subtle_link href={~p"/sources/#{source.id}"}>
-              {source.custom_name || source.collection_name}
-            </.subtle_link>
-          </:col>
-          <:col :let={source} label="Type">{source.collection_type}</:col>
-          <:col :let={source} label="Should Download?">
-            <.icon name={if source.download_media, do: "hero-check", else: "hero-x-mark"} />
-          </:col>
-          <:col :let={source} label="" class="flex justify-end">
-            <.icon_link href={~p"/sources/#{source.id}/edit"} icon="hero-pencil-square" class="mr-4" />
-          </:col>
-        </.table>
-      </:tab>
-    </.tabbed_layout>
+<.card
+  title={"Used by #{length(@sources)} #{if length(@sources) == 1, do: "source", else: "sources"}"}
+  description="Sources download with this profile's settings. Change a source's profile from its Edit page."
+  id="profile-sources"
+>
+  <.empty_state
+    :if={@sources == []}
+    icon="hero-tv"
+    title="No sources use this profile"
+    description="It can be deleted safely, or picked when you add a source."
+  />
+  <table :if={@sources != []} class="w-full text-sm">
+    <thead>
+      <tr class="border-t border-line text-left text-xs font-medium uppercase tracking-wide text-muted">
+        <th class="px-5 py-2 font-medium">Name</th>
+        <th class="px-3 py-2 font-medium">Type</th>
+        <th class="px-3 py-2 font-medium">Status</th>
+        <th class="px-5 py-2"><span class="sr-only">Actions</span></th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr :for={source <- @sources} class="border-t border-line" id={"profile-source-#{source.id}"}>
+        <td class="px-5 py-2.5">
+          <.link href={~p"/sources/#{source.id}"} class="font-medium text-fg hover:text-accent">
+            {source.custom_name || source.collection_name}
+          </.link>
+        </td>
+        <td class="px-3 py-2.5 capitalize text-muted">{source.collection_type}</td>
+        <td class="px-3 py-2.5">
+          <.status_chip :if={source.download_media} kind={:ok}>Monitored</.status_chip>
+          <.status_chip :if={!source.download_media}>Unmonitored</.status_chip>
+        </td>
+        <td class="px-5 py-2.5">
+          <div class="flex justify-end gap-1">
+            <.link
+              href={~p"/sources/#{source.id}/edit"}
+              class="rounded-md px-2.5 py-1 text-[13px] font-medium text-fg hover:bg-surface-2"
+            >
+              Edit
+            </.link>
+            <.link
+              href={~p"/sources/#{source.id}?return_to=/media_profiles/#{@media_profile.id}"}
+              method="delete"
+              data-confirm={"Delete \"#{source.custom_name || source.collection_name}\"? Downloaded files stay on disk. This cannot be undone."}
+              class="rounded-md px-2.5 py-1 text-[13px] font-medium text-bad hover:bg-bad/10"
+            >
+              Delete
+            </.link>
+          </div>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</.card>
+
+<.card title="Delete profile" class="mt-6" id="profile-delete">
+  <div class="flex flex-wrap items-center justify-between gap-4 border-t border-line px-5 py-4">
+    <p :if={@sources == []} class="max-w-xl text-sm text-muted">
+      Nothing uses this profile. Deleting it can't be undone.
+    </p>
+    <p :if={@sources != []} class="max-w-xl text-sm text-muted">
+      This profile is in use. Move or delete the sources above before deleting it.
+    </p>
+    <.link
+      :if={@sources == []}
+      href={~p"/media_profiles/#{@media_profile}"}
+      method="delete"
+      data-confirm={"Delete the \"#{@media_profile.name}\" profile? This cannot be undone."}
+      class="inline-flex h-10 items-center rounded-lg bg-bad px-4 text-sm font-medium text-white hover:bg-bad/90"
+    >
+      Delete profile
+    </.link>
+    <span
+      :if={@sources != []}
+      class="inline-flex h-10 cursor-not-allowed items-center rounded-lg border border-line px-4 text-sm font-medium text-muted"
+      aria-disabled="true"
+      title="In use by sources"
+    >
+      Delete profile
+    </span>
   </div>
-</div>
+</.card>

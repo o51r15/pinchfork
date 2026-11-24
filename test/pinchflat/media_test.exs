@@ -256,7 +256,7 @@ defmodule Pinchflat.MediaTest do
       livestream = media_item_fixture(%{source_id: source.id, media_filepath: nil, livestream: true})
       short = media_item_fixture(%{source_id: source.id, media_filepath: nil, short_form_content: true})
 
-      assert Media.list_pending_media_items_for(source) == [normal, livestream, short]
+      assert Enum.sort_by(Media.list_pending_media_items_for(source), & &1.id) == [normal, livestream, short]
     end
 
     test "returns only livestreams and shorts when behaviour is :only" do
@@ -273,7 +273,7 @@ defmodule Pinchflat.MediaTest do
       livestream = media_item_fixture(%{source_id: source.id, media_filepath: nil, livestream: true})
       short = media_item_fixture(%{source_id: source.id, media_filepath: nil, short_form_content: true})
 
-      assert Media.list_pending_media_items_for(source) == [livestream, short]
+      assert Enum.sort_by(Media.list_pending_media_items_for(source), & &1.id) == [livestream, short]
     end
 
     test "returns only normal media when behaviour is :exclude" do

@@ -77,7 +77,9 @@ defmodule PinchflatWeb.PageSnapshotTest do
       %{profile: profile, source: hd(sources)}
     end
 
-    test "pages", %{conn: conn, source: source} do
+    test "pages", %{conn: conn, source: source, profile: profile} do
+      snapshot("18-media-profile-show", conn |> get(~p"/media_profiles/#{profile}") |> html_response(200))
+
       snapshot("10-sources", conn |> get(~p"/sources") |> html_response(200))
       snapshot("11-source-show", conn |> get(~p"/sources/#{source}") |> html_response(200))
       snapshot("12-source-new", conn |> get(~p"/sources/new") |> html_response(200))
