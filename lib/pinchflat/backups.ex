@@ -12,18 +12,51 @@ defmodule Pinchflat.Backups do
 
   require Logger
 
-  @backup_dir "/backups"
   @max_backups 10
 
-  def backup_dir, do: @backup_dir
+  # Configurable so tests can point it somewhere temporary
+  def backup_dir, do: Application.get_env(:pinchflat, :backup_directory, "/backups")
   def max_backups, do: @max_backups
+
+  @doc """
+  Whether backups can be written: the folder exists and is writable.
+
+  Returns :ok | :missing | :read_only
+  """
+  def directory_status(dir \\ backup_dir()) do
+    case File.stat(dir) do
+      {:ok, %File.Stat{type: :directory, access: access}} when access in [:read_write, :write] -> :ok
+      {:ok, %File.Stat{type: :directory}} -> :read_only
+      _ -> :missing
+    end
+  end
+
+  @doc """
+  Whether the folder is its own mount (a volume from the host) rather than part of the
+  container's filesystem, where backups would be lost when the container is recreated.
+  Reads /proc/self/mountinfo, so it only knows on Linux.
+
+  Returns true | false | nil (can't tell)
+  """
+  def mounted?(dir \\ backup_dir(), mountinfo_path \\ "/proc/self/mountinfo") do
+    case File.read(mountinfo_path) do
+      # The 5th field of each line is the mount point
+      {:ok, contents} ->
+        contents
+        |> String.split("\n", trim: true)
+        |> Enum.any?(fn line -> Enum.at(String.split(line, " "), 4) == dir end)
+
+      _ ->
+        nil
+    end
+  end
 
   @doc """
   Returns a list of existing backups sorted newest first.
   Each entry: %{filename, filepath, size_bytes, created_at}
   """
   def list_backups do
-    case File.ls(@backup_dir) do
+    case File.ls(backup_dir()) do
       {:ok, files} ->
         files
         |> Enum.filter(&String.ends_with?(&1, ".sql.gz"))
@@ -59,7 +92,7 @@ defmodule Pinchflat.Backups do
   """
   def delete_backup(filename) do
     safe_name = Path.basename(filename)
-    filepath = Path.join(@backup_dir, safe_name)
+    filepath = Path.join(backup_dir(), safe_name)
 
     if String.ends_with?(safe_name, ".sql.gz") && File.exists?(filepath) do
       File.rm(filepath)
@@ -74,7 +107,7 @@ defmodule Pinchflat.Backups do
   """
   def backup_path(filename) do
     safe_name = Path.basename(filename)
-    filepath = Path.join(@backup_dir, safe_name)
+    filepath = Path.join(backup_dir(), safe_name)
 
     if String.ends_with?(safe_name, ".sql.gz") && File.exists?(filepath) do
       filepath
@@ -88,7 +121,7 @@ defmodule Pinchflat.Backups do
   # ---------------------------------------------------------------------------
 
   defp build_backup_entry(filename) do
-    filepath = Path.join(@backup_dir, filename)
+    filepath = Path.join(backup_dir(), filename)
 
     case File.stat(filepath) do
       {:ok, %File.Stat{size: size, mtime: mtime}} ->
@@ -131,8 +164,8 @@ defmodule Pinchflat.Backups do
     timestamp = DateTime.utc_now() |> Calendar.strftime("%Y-%m-%dT%H-%M-%S")
     sql_filename = "pinchfork-backup-#{timestamp}.sql"
     gz_filename = "#{sql_filename}.gz"
-    sql_path = Path.join(@backup_dir, sql_filename)
-    _gz_path = Path.join(@backup_dir, gz_filename)
+    sql_path = Path.join(backup_dir(), sql_filename)
+    _gz_path = Path.join(backup_dir(), gz_filename)
 
     dump_args = [
       "-h",

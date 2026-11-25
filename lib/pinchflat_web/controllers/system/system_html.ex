@@ -60,6 +60,46 @@ defmodule PinchflatWeb.System.SystemHTML do
   def human_bytes(bytes) when bytes >= 1_000, do: "#{Float.round(bytes / 1_000, 1)} KB"
   def human_bytes(bytes), do: "#{bytes} B"
 
+  defdelegate time_ago(time), to: PinchflatWeb.Sources.SourceHTML
+
+  @doc """
+  Shell commands in a box with a Copy button. Each command is one line.
+  """
+  attr :commands, :list, required: true
+  attr :id, :string, required: true
+
+  def command_block(assigns) do
+    assigns = assign(assigns, :text, Enum.join(assigns.commands, "\n"))
+
+    ~H"""
+    <div class="relative rounded-lg border border-line bg-surface-2" id={@id} x-data="{ copied: false }">
+      <pre class="whitespace-pre-wrap break-all px-4 py-3 pr-20 font-mono text-[13px] leading-6 text-fg"><code>{@text}</code></pre>
+      <button
+        type="button"
+        class="absolute right-2 top-2 inline-flex h-7 items-center gap-1 rounded-md border border-line bg-surface px-2 text-xs font-semibold text-fg hover:bg-surface-3"
+        x-on:click={"navigator.clipboard.writeText(#{Jason.encode!(@text)}).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"}
+      >
+        <.icon name="hero-clipboard-document-mini" class="h-3.5 w-3.5" />
+        <span x-text="copied ? 'Copied' : 'Copy'">Copy</span>
+      </button>
+    </div>
+    """
+  end
+
+  @doc """
+  What YT_DLP_VERSION means for how yt-dlp stays current.
+  """
+  def yt_dlp_policy_text(policy) when policy in ["stable", ""], do: "Updates itself daily to the latest stable release."
+  def yt_dlp_policy_text("nightly"), do: "Updates itself daily to the latest nightly build."
+  def yt_dlp_policy_text("master"), do: "Updates itself daily to the latest master build."
+
+  def yt_dlp_policy_text(policy) when policy in ["pinned", "none"],
+    do: "Automatic updates are off (YT_DLP_VERSION=#{policy})."
+
+  def yt_dlp_policy_text(version), do: "Pinned to #{version} by YT_DLP_VERSION."
+
+  def total_size(backups), do: backups |> Enum.map(& &1.size_bytes) |> Enum.sum() |> human_bytes()
+
   def about_rows(about) do
     [
       {"Pinchfork", "v#{about.pinchfork_version}"},

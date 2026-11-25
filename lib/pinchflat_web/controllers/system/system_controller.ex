@@ -4,6 +4,7 @@ defmodule PinchflatWeb.System.SystemController do
   import Ecto.Query, warn: false
 
   alias Pinchflat.Repo
+  alias Pinchflat.Backups
   alias Pinchflat.Settings
   alias Pinchflat.YtDlp.PoTokenServer
 
@@ -115,25 +116,40 @@ defmodule PinchflatWeb.System.SystemController do
   end
 
   def backup(conn, _params) do
-    render(conn, :backup, backups: Pinchflat.Backups.list_backups())
+    render(conn, :backup,
+      backups: Backups.list_backups(),
+      backup_dir: Backups.backup_dir(),
+      max_backups: Backups.max_backups(),
+      dir_status: Backups.directory_status(),
+      mounted: Backups.mounted?(),
+      page_title: "Backup"
+    )
   end
 
   def create_backup(conn, _params) do
-    case Pinchflat.Backups.create_backup() do
-      {:ok, filename} ->
-        conn
-        |> put_flash(:info, "Backup created: #{filename}")
-        |> redirect(to: ~p"/system/backup")
+    case Backups.directory_status() do
+      :ok ->
+        case Backups.create_backup() do
+          {:ok, filename} ->
+            conn
+            |> put_flash(:info, "Backed up to #{filename}.")
+            |> redirect(to: ~p"/system/backup")
 
-      {:error, reason} ->
+          {:error, reason} ->
+            conn
+            |> put_flash(:error, "The backup didn't finish: #{reason}")
+            |> redirect(to: ~p"/system/backup")
+        end
+
+      _ ->
         conn
-        |> put_flash(:error, "Backup failed: #{reason}")
+        |> put_flash(:error, "Pinchfork can't write to #{Backups.backup_dir()}. See the note on this page.")
         |> redirect(to: ~p"/system/backup")
     end
   end
 
   def download_backup(conn, %{"filename" => filename}) do
-    case Pinchflat.Backups.backup_path(filename) do
+    case Backups.backup_path(filename) do
       nil ->
         conn
         |> put_flash(:error, "Backup file not found.")
@@ -145,7 +161,7 @@ defmodule PinchflatWeb.System.SystemController do
   end
 
   def delete_backup(conn, %{"filename" => filename}) do
-    case Pinchflat.Backups.delete_backup(filename) do
+    case Backups.delete_backup(filename) do
       :ok ->
         conn
         |> put_flash(:info, "Backup deleted.")
@@ -159,6 +175,18 @@ defmodule PinchflatWeb.System.SystemController do
   end
 
   def updates(conn, _params) do
-    render(conn, :updates, current_version: Application.spec(:pinchflat)[:vsn] |> to_string())
+    yt_dlp_version =
+      case Settings.get(:yt_dlp_version) do
+        {:ok, v} when v not in [nil, ""] -> v
+        _ -> nil
+      end
+
+    render(conn, :updates,
+      current_version: Application.spec(:pinchflat)[:vsn] |> to_string(),
+      yt_dlp_version: yt_dlp_version,
+      yt_dlp_policy: System.get_env("YT_DLP_VERSION", "stable"),
+      last_backup: List.first(Backups.list_backups()),
+      page_title: "Updates"
+    )
   end
 end

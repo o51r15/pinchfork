@@ -199,6 +199,28 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("25-search", conn |> get(~p"/search?q=roanoke") |> html_response(200))
       snapshot("25b-search-empty", conn |> get(~p"/search?q=zeppelin") |> html_response(200))
 
+      backup_dir = Path.join(System.tmp_dir!(), "pf-snap-backups")
+      File.rm_rf!(backup_dir)
+      File.mkdir_p!(backup_dir)
+      Application.put_env(:pinchflat, :backup_directory, backup_dir)
+
+      File.write!(
+        Path.join(backup_dir, "pinchfork-backup-2026-11-25T03-00-00.sql.gz"),
+        String.duplicate("x", 2_400_000)
+      )
+
+      File.write!(
+        Path.join(backup_dir, "pinchfork-backup-2026-11-18T03-00-00.sql.gz"),
+        String.duplicate("x", 2_300_000)
+      )
+
+      File.touch!(Path.join(backup_dir, "pinchfork-backup-2026-11-18T03-00-00.sql.gz"), {{2026, 11, 18}, {3, 0, 0}})
+      Settings.set(yt_dlp_version: "2026.11.01")
+
+      snapshot("26-backup", conn |> get(~p"/system/backup") |> html_response(200))
+      snapshot("27-updates", conn |> get(~p"/system/updates") |> html_response(200))
+      Application.delete_env(:pinchflat, :backup_directory)
+
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end

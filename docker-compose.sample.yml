@@ -66,6 +66,7 @@ services:
     volumes:
       - /path/to/config:/config # app config + state
       - /path/to/downloads:/downloads # final media library
+      - /path/to/backups:/backups # database backups (System › Backup); without this they're lost when the container is recreated
       # Local staging target for LOCALTEMP above — MUST be a real LOCAL disk (not the network
       # mount, not a container path). Uncomment together with LOCALTEMP.
       # - /path/to/local/staging:/downloads-staging
