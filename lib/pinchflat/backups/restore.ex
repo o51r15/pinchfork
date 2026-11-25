@@ -9,7 +9,8 @@ defmodule Pinchflat.Backups.Restore do
     2. Unpack it to a temporary file. psql only ever reads a complete file, because in
        single-transaction mode it commits whatever it has when its input ends.
     3. Make a safety backup of the current database.
-    4. Pause background jobs and wait for running ones to finish.
+    4. Pause every queue so nothing new starts, and cancel whatever is running (waiting for
+       running jobs proved impractical: indexing a big channel can take 10+ minutes).
     5. In ONE transaction: drop and recreate the public schema, then load the dump. Postgres
        DDL is transactional, so if anything fails the database is exactly as it was.
     6. Run any migrations newer than the backup.
@@ -17,9 +18,12 @@ defmodule Pinchflat.Backups.Restore do
        recreates tables and types with new internal ids, and Postgrex caches type ids for the
        life of the runtime, so without a restart Oban keeps failing with "cache lookup failed
        for type" (seen on the test stack: once a minute until restarted). Jobs stay paused
-       until then, so nothing runs on a stale connection.
+       until then, so nothing runs on a stale connection; the queues start unpaused after the
+       restart. The cancelled jobs don't matter here: the backup brings its own job table.
 
-  If the load fails nothing changed: jobs resume and there's no restart.
+  If the load fails nothing changed: the queues are unpaused and the cancelled jobs are put
+  back in the queue (an indexing job schedules the next one when it finishes, so leaving it
+  cancelled could stop a source being indexed). There's no restart.
   Only one restore runs at a time.
   """
 
@@ -31,14 +35,14 @@ defmodule Pinchflat.Backups.Restore do
   alias Pinchflat.Backups
 
   @lock_resource :pinchfork_restore
-  # Downloads can take a while; 30 seconds was too short in practice on the test stack
-  @wait_for_jobs_ms 120_000
+  # How long cancelled jobs get to actually stop before the restore gives up
+  @wait_for_jobs_ms 30_000
 
   @steps [
     checking: "Checking the backup",
     unpacking: "Unpacking it",
     safety_backup: "Backing up the current database",
-    pausing: "Pausing background jobs",
+    pausing: "Pausing background jobs and stopping running ones",
     restoring: "Restoring",
     updating: "Updating the database for this version",
     restarting: "Restarting Pinchfork"
@@ -130,12 +134,14 @@ defmodule Pinchflat.Backups.Restore do
   Restores the backup at `path`. `opts`:
 
     * `:notify` - called with each step atom as it starts (see `steps/0`)
-    * `:jobs` - `{pause_fun, resume_fun, running_count_fun}`, for tests
+    * `:jobs` - a map overriding any of `pause` (fn -> any), `resume` (fn -> any),
+      `cancel` (fn -> [job_id] cancelled), `running` (fn -> count) and `requeue` (fn ids -> any),
+      for tests
     * `:runner` - `fn sql_paths, db_config -> {output, exit_status} end` that runs psql, for tests
     * `:safety_backup` - `fn -> {:ok, filename} | {:error, reason} end`, for tests
     * `:finish` - `fn -> :ok | {:error, message} end` run after loading (migrations), for tests
     * `:restart` - `fn -> any end` that restarts Pinchfork after a restore, for tests
-    * `:wait_ms` - how long to wait for running jobs (default 2 minutes)
+    * `:wait_ms` - how long cancelled jobs get to stop (default 30 seconds)
 
   Returns
     * {:ok, %{safety_backup: filename, warning: nil | message}} - restored; Pinchfork restarts
@@ -167,7 +173,7 @@ defmodule Pinchflat.Backups.Restore do
 
   defp do_restore(path, opts) do
     notify = Keyword.get(opts, :notify, fn _ -> :ok end)
-    {pause, resume, running} = Keyword.get(opts, :jobs, {&pause_jobs/0, &resume_jobs/0, &running_jobs/0})
+    jobs = Map.merge(default_jobs(), Keyword.get(opts, :jobs, %{}))
     runner = Keyword.get(opts, :runner, &run_psql/2)
     safety_backup = Keyword.get(opts, :safety_backup, &Backups.create_backup/0)
     finish = Keyword.get(opts, :finish, &migrate/0)
@@ -187,9 +193,16 @@ defmodule Pinchflat.Backups.Restore do
            :ok <- notify_step(notify, :safety_backup),
            {:ok, safety} <- safety_backup(safety_backup) do
         notify.(:pausing)
-        pause.()
+        jobs.pause.()
+        {stopped, cancelled} = stop_jobs(jobs, wait_ms)
 
-        case wait_and_load(running, wait_ms, notify, runner, sql_paths, db) do
+        outcome =
+          with :ok <- stopped,
+               :ok <- notify_step(notify, :restoring) do
+            load_safely(runner, sql_paths, db)
+          end
+
+        case outcome do
           :ok ->
             # The database is replaced from here on. Jobs stay paused: the restart starts them
             # again on fresh connections.
@@ -200,8 +213,10 @@ defmodule Pinchflat.Backups.Restore do
             restart.()
             {:ok, %{safety_backup: safety, warning: warning}}
 
+          # Nothing changed: unpause, and put back what was cancelled so it runs again
           {:error, _} = error ->
-            resume.()
+            jobs.resume.()
+            jobs.requeue.(cancelled)
             error
         end
       end
@@ -239,27 +254,29 @@ defmodule Pinchflat.Backups.Restore do
     end
   end
 
-  defp wait_for_jobs(running, wait_ms, waited \\ 0) do
+  # Cancels whatever is running, every round, so a job that started just as the queues paused
+  # is caught too, until nothing is running. Returns {:ok | {:error, message}, cancelled_ids}
+  defp stop_jobs(jobs, wait_ms, cancelled \\ [], waited \\ 0) do
+    cancelled = Enum.uniq(cancelled ++ jobs.cancel.())
+
     cond do
-      running.() == 0 ->
-        :ok
+      jobs.running.() == 0 ->
+        {:ok, cancelled}
 
       waited >= wait_ms ->
-        {:error,
-         "Downloads or other jobs are still running. Nothing was changed; try again when they've finished (Activity shows them)."}
+        {{:error, "Some running jobs didn't stop in time. Nothing was changed; try again in a minute."}, cancelled}
 
       true ->
         Process.sleep(1_000)
-        wait_for_jobs(running, wait_ms, waited + 1_000)
+        stop_jobs(jobs, wait_ms, cancelled, waited + 1_000)
     end
+  rescue
+    e -> {{:error, "Background jobs couldn't be stopped, so nothing was changed: #{Exception.message(e)}"}, cancelled}
   end
 
-  # Anything that raises before the load finishes leaves the database untouched, so jobs resume
-  defp wait_and_load(running, wait_ms, notify, runner, sql_paths, db) do
-    with :ok <- wait_for_jobs(running, wait_ms),
-         :ok <- notify_step(notify, :restoring) do
-      load(runner, sql_paths, db)
-    end
+  # Anything that raises before the load finishes leaves the database untouched
+  defp load_safely(runner, sql_paths, db) do
+    load(runner, sql_paths, db)
   rescue
     e -> {:error, "The restore stopped before changing anything: #{Exception.message(e)}"}
   end
@@ -332,11 +349,32 @@ defmodule Pinchflat.Backups.Restore do
     end)
   end
 
-  defp pause_jobs, do: Oban.pause_all_queues(Oban)
-  defp resume_jobs, do: Oban.resume_all_queues(Oban)
+  defp default_jobs do
+    %{
+      pause: fn -> Oban.pause_all_queues(Oban) end,
+      resume: fn -> Oban.resume_all_queues(Oban) end,
+      cancel: &cancel_running_jobs/0,
+      running: &running_jobs/0,
+      requeue: &requeue_jobs/1
+    }
+  end
+
+  # Oban kills an executing job when it's cancelled
+  defp cancel_running_jobs do
+    ids = Repo.all(from(j in Oban.Job, where: fragment("?::text", j.state) == "executing", select: j.id))
+    Enum.each(ids, &Oban.cancel_job(Oban, &1))
+    if ids != [], do: Logger.info("Restore: cancelled running jobs #{inspect(ids)}")
+    ids
+  end
 
   # oban_jobs.state is a Postgres enum, so compare it as text
   defp running_jobs do
     Repo.aggregate(from(j in Oban.Job, where: fragment("?::text", j.state) == "executing"), :count)
+  end
+
+  # After a restore that didn't happen: cancelled jobs go back to available and run again
+  defp requeue_jobs(ids) do
+    Enum.each(ids, &Oban.retry_job(Oban, &1))
+    if ids != [], do: Logger.info("Restore didn't happen: put cancelled jobs #{inspect(ids)} back in the queue")
   end
 end

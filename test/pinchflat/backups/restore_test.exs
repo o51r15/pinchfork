@@ -41,10 +41,18 @@ defmodule Pinchflat.Backups.RestoreTest do
     [
       notify: fn step -> send(test_pid, {:step, step}) end,
       jobs:
-        Keyword.get(
-          overrides,
-          :jobs,
-          {fn -> send(test_pid, :paused) end, fn -> send(test_pid, :resumed) end, fn -> 0 end}
+        Map.merge(
+          %{
+            pause: fn -> send(test_pid, :paused) end,
+            resume: fn -> send(test_pid, :resumed) end,
+            cancel: fn ->
+              send(test_pid, :cancelled)
+              [41, 42]
+            end,
+            running: fn -> 0 end,
+            requeue: fn ids -> send(test_pid, {:requeued, ids}) end
+          },
+          Keyword.get(overrides, :jobs, %{})
         ),
       runner:
         Keyword.get(overrides, :runner, fn paths, db ->
@@ -120,10 +128,11 @@ defmodule Pinchflat.Backups.RestoreTest do
       assert loaded == contents
       assert %{host: "db.example", port: 5433, user: "pinchflat", db: "pinchflat"} = db
 
-      # Safety backup before pausing, pausing before loading, then a restart instead of resuming:
-      # jobs must not run on connections that still know the old tables
+      # Safety backup, then pause and cancel what's running, then load, then a restart instead of
+      # unpausing: jobs must not run on connections that still know the old tables. Nothing is
+      # requeued: the backup brings its own job table.
       order = Enum.reject(received, &match?({:step, _}, &1)) |> Enum.map(&if(is_tuple(&1), do: elem(&1, 0), else: &1))
-      assert order == [:safety_backup, :paused, :ran, :finished, :restarted]
+      assert order == [:safety_backup, :paused, :cancelled, :ran, :finished, :restarted]
     end
 
     test "a failed load says nothing changed and still resumes jobs", %{dir: dir} do
@@ -148,6 +157,7 @@ defmodule Pinchflat.Backups.RestoreTest do
       refute message =~ "NOTICE"
       refute message =~ "/tmp/"
       assert_received :resumed
+      assert_received {:requeued, [41, 42]}
       refute_received :finished
       refute_received :restarted
     end
@@ -171,14 +181,13 @@ defmodule Pinchflat.Backups.RestoreTest do
       refute_received {:ran, _, _}
     end
 
-    test "gives up when jobs keep running, without loading anything", %{dir: dir} do
+    test "gives up when cancelled jobs don't stop, and puts them back", %{dir: dir} do
       path = write_gz(dir, "a.sql.gz", dump(20_250_101_000_000))
-      test_pid = self()
-      jobs = {fn -> send(test_pid, :paused) end, fn -> send(test_pid, :resumed) end, fn -> 2 end}
 
-      assert {:error, message} = Restore.restore(path, fakes(test_pid, jobs: jobs))
-      assert message =~ "still running"
+      assert {:error, message} = Restore.restore(path, fakes(self(), jobs: %{running: fn -> 1 end}))
+      assert message =~ "didn't stop in time"
       assert_received :resumed
+      assert_received {:requeued, [41, 42]}
       refute_received {:ran, _, _}
     end
 

@@ -265,8 +265,8 @@ defmodule PinchflatWeb.System.BackupLive do
         <ol class="flex list-decimal flex-col gap-1.5 border-t border-line py-4 pl-10 pr-5 text-sm text-fg">
           <li>Pinchfork backs up the current database first, so you can go back.</li>
           <li>
-            Background jobs pause. If downloads are running, it waits up to 2 minutes for them to finish;
-            if they're still going after that, nothing changes and you can try again.
+            Background jobs pause, and anything running (like a download) is stopped. If the restore
+            doesn't go ahead, they're put back and carry on.
           </li>
           <li>
             The database is replaced in one step. If anything goes wrong, nothing changes.
