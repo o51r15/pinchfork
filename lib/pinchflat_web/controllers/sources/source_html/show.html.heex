@@ -3,8 +3,9 @@
 </.link>
 
 <%!-- Header: fanart banner, poster, title and the main actions --%>
-<section class="pf-card overflow-hidden" id="source-header">
-  <div class="relative h-32 bg-surface-2 md:h-44">
+<%!-- No overflow-hidden on the card: it would clip the More menu. Only the banner is clipped. --%>
+<section class="pf-card relative z-20" id="source-header">
+  <div class="relative h-32 overflow-hidden rounded-t-[inherit] bg-surface-2 md:h-44">
     <img src={~p"/sources/#{@source.id}/fanart"} alt="" class="h-full w-full object-cover" />
     <div class="absolute inset-0 bg-gradient-to-t from-surface via-surface/50 to-transparent"></div>
   </div>
