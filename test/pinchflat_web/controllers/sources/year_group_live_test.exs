@@ -24,7 +24,10 @@ defmodule PinchflatWeb.Sources.YearGroupLiveTest do
     source = source_fixture()
 
     for day <- 1..3 do
-      media_item_fixture(source_id: source.id, uploaded_at: DateTime.new!(~D[2024-05-01], ~T[00:00:00]) |> DateTime.add(day, :day))
+      media_item_fixture(
+        source_id: source.id,
+        uploaded_at: DateTime.new!(~D[2024-05-01], ~T[00:00:00]) |> DateTime.add(day, :day)
+      )
     end
 
     {:ok, view, html} = open(conn, source)

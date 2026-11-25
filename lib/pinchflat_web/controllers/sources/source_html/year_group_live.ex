@@ -62,7 +62,10 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
                 <.localized_number number={year_data.total} /> {if year_data.total == 1, do: "episode", else: "episodes"}
               </span>
               <div class="hidden h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-surface-3 sm:block">
-                <div class="h-full rounded-full bg-ok transition-all duration-300" style={"width: #{progress_pct(year_data)}%"}>
+                <div
+                  class="h-full rounded-full bg-ok transition-all duration-300"
+                  style={"width: #{progress_pct(year_data)}%"}
+                >
                 </div>
               </div>
               <span class="tabular shrink-0 text-xs text-muted">
@@ -91,7 +94,10 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
               phx-click="toggle_year"
               phx-value-year={year_data.year}
               title={year_toggle_title(year_data.toggle_state)}
-              class={["shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors", year_toggle_class(year_data.toggle_state)]}
+              class={[
+                "shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors",
+                year_toggle_class(year_data.toggle_state)
+              ]}
             >
               {year_toggle_label(year_data.toggle_state)}
             </button>
@@ -124,10 +130,18 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
                     <td class="whitespace-nowrap px-4 py-2 text-xs text-muted">{format_episode_date(item.uploaded_at)}</td>
                     <td class="max-w-xs px-4 py-2">
                       <div class="flex min-w-0 items-center gap-1.5">
-                        <.tooltip :if={item.last_error} tooltip={item.last_error} position="bottom-right" tooltip_class="w-64">
+                        <.tooltip
+                          :if={item.last_error}
+                          tooltip={item.last_error}
+                          position="bottom-right"
+                          tooltip_class="w-64"
+                        >
                           <.icon name="hero-exclamation-circle-mini" class="h-4 w-4 shrink-0 text-bad" />
                         </.tooltip>
-                        <.link href={~p"/sources/#{@source.id}/media/#{item.id}"} class="block truncate text-fg hover:text-accent">
+                        <.link
+                          href={~p"/sources/#{@source.id}/media/#{item.id}"}
+                          class="block truncate text-fg hover:text-accent"
+                        >
                           {item.title}
                         </.link>
                       </div>
@@ -146,9 +160,16 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
                         phx-click="toggle_item"
                         phx-value-id={item.id}
                         class="text-muted transition-colors hover:text-fg"
-                        title={if item.prevent_download, do: "Turn downloading on for this video", else: "Turn downloading off for this video"}
+                        title={
+                          if item.prevent_download,
+                            do: "Turn downloading on for this video",
+                            else: "Turn downloading off for this video"
+                        }
                       >
-                        <.icon name={if item.prevent_download, do: "hero-eye-slash-mini", else: "hero-eye-mini"} class="h-4 w-4" />
+                        <.icon
+                          name={if item.prevent_download, do: "hero-eye-slash-mini", else: "hero-eye-mini"}
+                          class="h-4 w-4"
+                        />
                       </button>
                     </td>
                   </tr>
