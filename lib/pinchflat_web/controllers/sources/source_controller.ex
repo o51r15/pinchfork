@@ -9,7 +9,6 @@ defmodule PinchflatWeb.Sources.SourceController do
   alias Pinchflat.Sources.Source
   alias Pinchflat.Media.MediaItem
   alias Pinchflat.Media.SkipReason
-  alias Pinchflat.Profiles.MediaProfile
   alias Pinchflat.Media.FileSyncingWorker
   alias Pinchflat.Sources.SourceDeletionWorker
   alias Pinchflat.Downloading.DownloadingHelpers
@@ -123,24 +122,6 @@ defmodule PinchflatWeb.Sources.SourceController do
     end
   end
 
-  # Adding a source happens in SourceNewLive (/sources/new). This POST endpoint stays for
-  # anything that still submits the old form.
-  def create(conn, %{"source" => source_params}) do
-    case Sources.create_source(source_params) do
-      {:ok, source} ->
-        conn
-        |> put_flash(:info, "Source created successfully.")
-        |> redirect(to: ~p"/sources/#{source}")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :new,
-          changeset: changeset,
-          media_profiles: media_profiles(),
-          layout: get_onboarding_layout()
-        )
-    end
-  end
-
   def show(conn, %{"id" => id}) do
     source = Repo.preload(Sources.get_source!(id), :media_profile)
 
@@ -238,26 +219,6 @@ defmodule PinchflatWeb.Sources.SourceController do
     |> Enum.reject(&MapSet.member?(pending_ids, &1.id))
     |> Enum.frequencies_by(&SkipReason.for_item(&1, source, profile))
     |> Enum.sort_by(fn {reason, _} -> Enum.find_index(SkipReason.order(), &(&1 == reason)) end)
-  end
-
-  # Editing happens in SourceEditLive (/sources/:id/edit). This endpoint stays for anything that
-  # still submits the old form.
-  def update(conn, %{"id" => id, "source" => source_params}) do
-    source = Sources.get_source!(id)
-
-    case Sources.update_source(source, source_params) do
-      {:ok, source} ->
-        conn
-        |> put_flash(:info, "Source updated successfully.")
-        |> redirect(to: ~p"/sources/#{source}")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :edit,
-          source: source,
-          changeset: changeset,
-          media_profiles: media_profiles()
-        )
-    end
   end
 
   def delete(conn, %{"id" => id} = params) do
@@ -494,15 +455,5 @@ defmodule PinchflatWeb.Sources.SourceController do
       "" -> "?"
       initials -> initials
     end
-  end
-
-  defp media_profiles do
-    MediaProfile
-    |> order_by(asc: :name)
-    |> Repo.all()
-  end
-
-  defp get_onboarding_layout do
-    {Layouts, :app}
   end
 end

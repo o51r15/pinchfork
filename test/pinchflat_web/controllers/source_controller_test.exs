@@ -14,23 +14,8 @@ defmodule PinchflatWeb.SourceControllerTest do
   alias Pinchflat.SlowIndexing.MediaCollectionIndexingWorker
 
   setup do
-    media_profile = media_profile_fixture()
     Settings.set(onboarding: false)
-
-    {
-      :ok,
-      %{
-        create_attrs: %{
-          media_profile_id: media_profile.id,
-          collection_type: "channel",
-          original_url: "https://www.youtube.com/source/abc123"
-        },
-        update_attrs: %{
-          original_url: "https://www.youtube.com/source/321xyz"
-        },
-        invalid_attrs: %{original_url: nil, media_profile_id: nil}
-      }
-    }
+    :ok
   end
 
   describe "index" do
@@ -38,31 +23,6 @@ defmodule PinchflatWeb.SourceControllerTest do
     test "returns 200", %{conn: conn} do
       conn = get(conn, ~p"/sources")
       assert html_response(conn, 200) =~ "Sources"
-    end
-  end
-
-  describe "create source" do
-    test "redirects to show when data is valid", %{conn: conn, create_attrs: create_attrs} do
-      expect(YtDlpRunnerMock, :run, 1, &runner_function_mock/5)
-      conn = post(conn, ~p"/sources", source: create_attrs)
-
-      assert %{id: id} = redirected_params(conn)
-      assert redirected_to(conn) == ~p"/sources/#{id}"
-
-      conn = get(conn, ~p"/sources/#{id}")
-      assert html_response(conn, 200) =~ "Source"
-    end
-
-    test "renders errors when data is invalid", %{conn: conn, invalid_attrs: invalid_attrs} do
-      conn = post(conn, ~p"/sources", source: invalid_attrs)
-      assert html_response(conn, 200) =~ "New Source"
-    end
-
-    test "renders correct layout on error when onboarding", %{conn: conn, invalid_attrs: invalid_attrs} do
-      Settings.set(onboarding: true)
-      conn = post(conn, ~p"/sources", source: invalid_attrs)
-
-      refute html_response(conn, 200) =~ "MENU"
     end
   end
 
@@ -89,29 +49,6 @@ defmodule PinchflatWeb.SourceControllerTest do
       html = conn |> get(~p"/sources/#{source}") |> html_response(200)
 
       assert html =~ "Left out by download rules"
-    end
-  end
-
-  describe "update source" do
-    setup [:create_source]
-
-    test "redirects when data is valid", %{conn: conn, source: source, update_attrs: update_attrs} do
-      expect(YtDlpRunnerMock, :run, 1, &runner_function_mock/5)
-
-      conn = put(conn, ~p"/sources/#{source}", source: update_attrs)
-      assert redirected_to(conn) == ~p"/sources/#{source}"
-
-      conn = get(conn, ~p"/sources/#{source}")
-      assert html_response(conn, 200) =~ "https://www.youtube.com/source/321xyz"
-    end
-
-    test "renders errors when data is invalid", %{
-      conn: conn,
-      source: source,
-      invalid_attrs: invalid_attrs
-    } do
-      conn = put(conn, ~p"/sources/#{source}", source: invalid_attrs)
-      assert html_response(conn, 200) =~ "Editing \"#{source.custom_name}\""
     end
   end
 
@@ -269,17 +206,5 @@ defmodule PinchflatWeb.SourceControllerTest do
     media_item = media_item_with_attachments(%{source_id: source.id})
 
     %{source: source, media_item: media_item}
-  end
-
-  defp runner_function_mock(_url, :get_source_details, _opts, _ot, _addl) do
-    {
-      :ok,
-      Phoenix.json_library().encode!(%{
-        channel: "some channel name",
-        channel_id: "some_channel_id_#{:rand.uniform(1_000_000)}",
-        playlist_id: "some_playlist_id_#{:rand.uniform(1_000_000)}",
-        playlist_title: "some playlist name"
-      })
-    }
   end
 end
