@@ -18,6 +18,7 @@ defmodule Pinchflat.Sources do
   alias Pinchflat.SlowIndexing.SlowIndexingHelpers
   alias Pinchflat.FastIndexing.FastIndexingHelpers
   alias Pinchflat.Metadata.SourceMetadataStorageWorker
+  alias Pinchflat.Lifecycle.Notifications.Notifier
 
   @doc """
   Returns the relevant output path template for a source.
@@ -132,6 +133,10 @@ defmodule Pinchflat.Sources do
         |> maybe_change_source_from_url(attrs, Keyword.get(opts, :source_details))
         |> maybe_change_indexing_frequency()
         |> commit_and_handle_tasks(opts)
+        |> tap(fn
+          {:ok, source} -> Notifier.notify(:source_added, "Source added", source.custom_name)
+          _ -> nil
+        end)
 
       changeset ->
         Repo.insert(changeset)
@@ -192,7 +197,13 @@ defmodule Pinchflat.Sources do
     end
 
     delete_internal_metadata_files(source)
-    Repo.delete(source)
+
+    source
+    |> Repo.delete()
+    |> tap(fn
+      {:ok, deleted} -> Notifier.notify(:source_removed, "Source removed", deleted.custom_name)
+      _ -> nil
+    end)
   end
 
   @doc """

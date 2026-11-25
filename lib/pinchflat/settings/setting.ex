@@ -25,7 +25,14 @@ defmodule Pinchflat.Settings.Setting do
     :discovery_g4_enabled,
     :discovery_disabled_clusters,
     :default_client_enabled,
-    :default_client
+    :default_client,
+    :notify_new_media,
+    :notify_download_finished,
+    :notify_download_failed,
+    :notify_source_added,
+    :notify_source_removed,
+    :notify_problems,
+    :health_problems
   ]
 
   @required_fields [
@@ -63,6 +70,16 @@ defmodule Pinchflat.Settings.Setting do
     # Video client for sources that don't choose their own. See Sources.effective_client/2.
     field :default_client_enabled, :boolean, default: false
     field :default_client, :string, default: "web_creator,tv"
+
+    # Which events send a notification. See Notifications.Notifier.
+    field :notify_new_media, :boolean, default: true
+    field :notify_download_finished, :boolean, default: false
+    field :notify_download_failed, :boolean, default: false
+    field :notify_source_added, :boolean, default: false
+    field :notify_source_removed, :boolean, default: false
+    field :notify_problems, :boolean, default: false
+    # Problems already reported, so each is sent once (Health.CheckWorker)
+    field :health_problems, {:array, :string}, default: []
   end
 
   @doc false

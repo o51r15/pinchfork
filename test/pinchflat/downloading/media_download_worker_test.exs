@@ -538,4 +538,62 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
       end
     end
   end
+
+  describe "notifications" do
+    setup do
+      Pinchflat.Settings.set(apprise_server: "ntfys://x")
+      Pinchflat.Settings.set(notify_download_finished: true)
+      Pinchflat.Settings.set(notify_download_failed: true)
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+        _url, :download, _opts, _ot, _addl -> {:ok, render_metadata(:media_metadata)}
+        _url, :download_thumbnail, _opts, _ot, _addl -> {:ok, ""}
+      end)
+
+      :ok
+    end
+
+    test "a finished download sends Downloaded", %{media_item: media_item} do
+      expect(AppriseRunnerMock, :run, fn ["ntfys://x"], opts ->
+        assert opts[:title] == "[Pinchfork] Downloaded"
+        assert opts[:body] =~ "(#{media_item.source.custom_name})"
+        {:ok, ""}
+      end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+    end
+
+    test "a quality upgrade doesn't send Downloaded", %{media_item: media_item} do
+      expect(AppriseRunnerMock, :run, 0, fn _, _ -> {:ok, ""} end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id, quality_upgrade?: true})
+    end
+
+    test "a permanent failure sends Download failed with the reason", %{media_item: media_item} do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+        _url, :download, _opts, _ot, _addl -> {:error, "WARNING: x\nERROR: [youtube] abc123: Video unavailable", 1}
+      end)
+
+      expect(AppriseRunnerMock, :run, fn _, opts ->
+        assert opts[:title] == "[Pinchfork] Download failed"
+        assert opts[:body] =~ ~r/\): Video unavailable$/
+        {:ok, ""}
+      end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+    end
+
+    test "a failure that will be retried sends nothing", %{media_item: media_item} do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+        _url, :download, _opts, _ot, _addl -> {:error, "network hiccup", 1}
+      end)
+
+      expect(AppriseRunnerMock, :run, 0, fn _, _ -> {:ok, ""} end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+    end
+  end
 end

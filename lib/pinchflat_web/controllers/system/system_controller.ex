@@ -67,7 +67,7 @@ defmodule PinchflatWeb.System.SystemController do
       po_token_status: po_token_status,
       diagnostic_info: diagnostic_info,
       library: library_stats(),
-      disk: disk_usage(Application.get_env(:pinchflat, :media_directory))
+      disk: Pinchflat.Health.disk_usage(Application.get_env(:pinchflat, :media_directory))
     )
   end
 
@@ -82,25 +82,6 @@ defmodule PinchflatWeb.System.SystemController do
       downloaded: Repo.aggregate(downloaded, :count),
       size_bytes: Repo.one(from m in downloaded, select: type(coalesce(sum(m.media_size_bytes), 0), :integer))
     }
-  end
-
-  # Free space where downloads go, from `df`. nil when it can't be read.
-  defp disk_usage(nil), do: nil
-
-  defp disk_usage(path) do
-    with {output, 0} <- System.cmd("df", ["-Pk", path], stderr_to_stdout: true),
-         [_header, line | _] <- String.split(output, "\n", trim: true),
-         [_fs, total_kb, used_kb, free_kb | _] <- String.split(line),
-         {total, ""} <- Integer.parse(total_kb),
-         {used, ""} <- Integer.parse(used_kb),
-         {free, ""} <- Integer.parse(free_kb),
-         true <- total > 0 do
-      %{path: path, total: total * 1024, used: used * 1024, free: free * 1024, used_pct: round(used * 100 / total)}
-    else
-      _ -> nil
-    end
-  rescue
-    _ -> nil
   end
 
   def test_po_token(conn, _params) do

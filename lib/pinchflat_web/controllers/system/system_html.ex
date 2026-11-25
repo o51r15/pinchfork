@@ -37,13 +37,7 @@ defmodule PinchflatWeb.System.SystemHTML do
   defp state_bg(:bad), do: "bg-bad/15 text-bad"
 
   # Under 5% or 20 GB free is a problem; under 15% is worth a look
-  def disk_state(%{free: free, used_pct: pct}) do
-    cond do
-      pct >= 95 or free < 20 * 1_000_000_000 -> :bad
-      pct >= 85 -> :warn
-      true -> :ok
-    end
-  end
+  defdelegate disk_state(disk), to: Pinchflat.Health
 
   def disk_bar_class(disk) do
     case disk_state(disk) do

@@ -18,6 +18,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.YtDlp.PoTokenServer
   alias PinchflatWeb.Sources.SourceHTML
+  alias Pinchflat.Lifecycle.Notifications.Notifier
 
   # page => {title, fields that page may save}
   @pages %{
@@ -31,7 +32,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
          :audio_codec_preference
        ]},
     "youtube" => {"YouTube Access", [:youtube_api_key, :default_client_enabled, :default_client]},
-    "notifications" => {"Notifications", [:apprise_server]},
+    "notifications" => {"Notifications", [:apprise_server | Notifier.settings()]},
     "feeds" => {"Feeds & Sharing", []},
     "discovery" => {"Discovery", [:discovery_enabled, :discovery_g1_enabled, :discovery_g2_enabled]},
     "general" => {"General", []}
@@ -79,6 +80,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
        po_status: :checking,
        po_test: nil,
        notify_test: nil,
+       event_tests: %{},
        show_advanced: false,
        password_errors: %{}
      )
@@ -250,6 +252,21 @@ defmodule PinchflatWeb.Settings.SettingsLive do
     {:noreply, assign(socket, notify_mode: String.to_existing_atom(mode), notify_test: nil)}
   end
 
+  def handle_event("test_event", %{"event" => name}, socket) do
+    case Enum.find(Notifier.events(), &(to_string(&1.event) == name)) do
+      nil ->
+        {:noreply, socket}
+
+      %{event: event} ->
+        server = Phoenix.HTML.Form.input_value(socket.assigns.form, :apprise_server)
+
+        {:noreply,
+         socket
+         |> update(:event_tests, &Map.put(&1, event, :testing))
+         |> start_async({:event_test, event}, fn -> Notifier.send_sample(event, server) end)}
+    end
+  end
+
   def handle_event("test_notification", _params, socket) do
     case Phoenix.HTML.Form.input_value(socket.assigns.form, :apprise_server) do
       blank when blank in [nil, ""] ->
@@ -383,6 +400,18 @@ defmodule PinchflatWeb.Settings.SettingsLive do
 
   def handle_async(:notify_test, {:ok, {:error, reason}}, socket) do
     {:noreply, assign(socket, notify_test: {:error, "Apprise couldn't send it: #{inspect_reason(reason)}"})}
+  end
+
+  def handle_async({:event_test, event}, {:ok, :ok}, socket) do
+    {:noreply, update(socket, :event_tests, &Map.put(&1, event, {:ok, "Sent"}))}
+  end
+
+  def handle_async({:event_test, event}, {:ok, {:error, reason}}, socket) do
+    {:noreply, update(socket, :event_tests, &Map.put(&1, event, {:error, inspect_reason(reason)}))}
+  end
+
+  def handle_async({:event_test, event}, {:exit, _reason}, socket) do
+    {:noreply, update(socket, :event_tests, &Map.put(&1, event, {:error, "The test didn't finish. Try again."}))}
   end
 
   def handle_async(name, {:exit, _reason}, socket) when name in [:po_test, :api_key_test, :notify_test] do
@@ -710,7 +739,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
     ~H"""
     <.page_header
       title="Notifications"
-      description="Pinchfork can tell you when new videos have been downloaded. It sends notifications through Apprise, which supports Pushover, Discord, Telegram, ntfy, email and many more."
+      description="Pinchfork can tell you about new videos, finished or failed downloads, added or removed sources, and problems. It sends notifications through Apprise, which supports Pushover, Discord, Telegram, ntfy, email and many more."
     />
 
     <.form for={@form} id="settings-form" phx-change="validate" phx-submit="save">
@@ -791,6 +820,34 @@ defmodule PinchflatWeb.Settings.SettingsLive do
           <.test_result result={@notify_test} />
           <span :if={@dirty} class="ml-auto text-xs text-muted">The test uses what's typed, even before you save.</span>
         </div>
+      </.card>
+
+      <.card
+        title="What to send"
+        description="Choose which events send a notification. Test sends that event's example message, even if it's off."
+        class="mt-6"
+        id="notify-events-card"
+      >
+        <.settings_row
+          :for={event <- Notifier.events()}
+          label={event.label}
+          for={"setting_#{event.setting}"}
+          help={event.help}
+        >
+          <div class="flex flex-wrap items-center gap-3" id={"notify-event-#{event.event}"}>
+            <.switch field={@form[event.setting]} />
+            <button
+              type="button"
+              phx-click="test_event"
+              phx-value-event={event.event}
+              class={small_button()}
+              id={"test-event-#{event.event}"}
+            >
+              <.icon name="hero-paper-airplane-mini" class="h-4 w-4" /> Test
+            </button>
+            <.test_result result={@event_tests[event.event]} />
+          </div>
+        </.settings_row>
       </.card>
     </.form>
     """

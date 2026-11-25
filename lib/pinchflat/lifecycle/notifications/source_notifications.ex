@@ -8,6 +8,8 @@ defmodule Pinchflat.Lifecycle.Notifications.SourceNotifications do
   use Pinchflat.Media.MediaQuery
 
   alias Pinchflat.Repo
+  alias Pinchflat.Settings
+  alias Pinchflat.Lifecycle.Notifications.Notifier
 
   @doc """
   Wraps a function that may change the number of pending  or downloaded
@@ -34,9 +36,20 @@ defmodule Pinchflat.Lifecycle.Notifications.SourceNotifications do
   def send_new_media_notification(_, _, count) when count <= 0, do: :ok
 
   def send_new_media_notification(servers, source, changed_count) do
+    # The servers are passed in by the caller; only the event's switch is checked here
+    if Notifier.event_on?(Settings.record(), :new_media) do
+      send_new_media(servers, source, changed_count)
+    else
+      :ok
+    end
+  end
+
+  defp send_new_media(servers, source, changed_count) do
+    videos = if changed_count == 1, do: "video", else: "videos"
+
     opts = [
-      title: "[Pinchflat] New media found",
-      body: "Found #{changed_count} new media item(s) for #{source.custom_name}. Downloading them now"
+      title: "[Pinchfork] New videos found",
+      body: "Found #{changed_count} new #{videos} for #{source.custom_name}. Downloading them now."
     ]
 
     case backend_runner().run(servers, opts) do

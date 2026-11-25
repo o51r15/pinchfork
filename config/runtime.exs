@@ -65,7 +65,9 @@ config :pinchflat, Oban,
        {"#{current_minute} #{current_hour} * * *", Pinchflat.YtDlp.UpdateWorker},
        {"0 1 * * *", Pinchflat.Downloading.MediaRetentionWorker},
        {"0 2 * * *", Pinchflat.Downloading.MediaQualityUpgradeWorker},
-       {"0 3 * * *", Pinchflat.Discovery.ScanWorker}
+       {"0 3 * * *", Pinchflat.Discovery.ScanWorker},
+       # Problems notification (disk space, token server); only sends when something changes
+       {"*/30 * * * *", Pinchflat.Health.CheckWorker}
      ]}
   ]
 

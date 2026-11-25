@@ -16,6 +16,7 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
   alias Pinchflat.Media.FileSyncing
   alias Pinchflat.Downloading.MediaDownloader
   alias Pinchflat.Downloading.StagingCleaner
+  alias Pinchflat.Lifecycle.Notifications.Notifier
 
   alias Pinchflat.Lifecycle.UserScripts.CommandRunner, as: UserScriptRunner
 
@@ -127,6 +128,10 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
         run_user_script(:media_downloaded, updated_media_item)
 
+        unless is_quality_upgrade do
+          Notifier.notify(:download_finished, "Downloaded", item_text(media_item))
+        end
+
         :ok
 
       {:recovered, _media_item, _message} ->
@@ -138,6 +143,22 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
       {:error, _error_atom, message} ->
         action_on_error(media_item, message)
     end
+  end
+
+  # "Title (Source)" for notifications
+  defp item_text(media_item), do: "#{media_item.title} (#{media_item.source.custom_name})"
+
+  # The first line of yt-dlp's error, without its "ERROR: [youtube] <id>:" prefix
+  defp short_error(message) do
+    message
+    |> String.split("\n", trim: true)
+    |> Enum.find("", &String.contains?(&1, "ERROR"))
+    |> case do
+      "" -> message |> String.split("\n", trim: true) |> List.first("Unknown error")
+      line -> line
+    end
+    |> String.replace(~r/^ERROR:\s*(\[[^\]]+\]\s*)?([\w-]+:\s*)?/, "")
+    |> String.slice(0, 200)
   end
 
   defp compute_media_filesize(media_item) do
@@ -188,6 +209,8 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
           last_error: message_str,
           download_prevented_reason: "permanent_error"
         })
+
+        Notifier.notify(:download_failed, "Download failed", "#{item_text(media_item)}: #{short_error(message_str)}")
 
         {:ok, :non_retry}
 
