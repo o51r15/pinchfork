@@ -45,7 +45,7 @@ defmodule PinchflatWeb.CustomComponents.TextComponents do
     <.link
       href={@href}
       target={@target}
-      class={["underline decoration-bodydark decoration-1 hover:decoration-white", @class]}
+      class={["text-fg decoration-accent/60 underline-offset-2 hover:text-accent hover:underline", @class]}
     >
       {render_slot(@inner_block)}
     </.link>

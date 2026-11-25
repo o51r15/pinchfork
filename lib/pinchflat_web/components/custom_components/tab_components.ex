@@ -3,11 +3,14 @@ defmodule PinchflatWeb.CustomComponents.TabComponents do
   use Phoenix.Component
 
   @doc """
-  Takes a list of tabs and renders them in a tabbed layout.
+  Takes a list of tabs and renders them in a tabbed layout. The open tab is kept in the URL
+  hash, and a LiveView can switch tabs with `push_event(socket, "switch-tab", %{tab: id})`.
+  A tab can show a count badge.
   """
   slot :tab, required: true do
     attr :id, :string, required: true
     attr :title, :string, required: true
+    attr :count, :integer
   end
 
   slot :tab_append, required: false
@@ -17,32 +20,36 @@ defmodule PinchflatWeb.CustomComponents.TabComponents do
 
     ~H"""
     <div
-      x-data={"{
-        openTab: getTabFromHash('#{@first_tab_id}', '#{@first_tab_id}'),
-        activeClasses: 'text-meta-5 border-meta-5',
-        inactiveClasses: 'border-transparent'
-      }"}
+      x-data={"{ openTab: getTabFromHash('#{@first_tab_id}', '#{@first_tab_id}') }"}
       @hashchange.window={"openTab = getTabFromHash(openTab, '#{@first_tab_id}')"}
       class="w-full"
     >
-      <header class="flex flex-col md:flex-row md:justify-between border-b border-strokedark">
-        <div class="flex flex-wrap gap-5 sm:gap-10">
+      <header class="flex flex-col gap-2 border-b border-line md:flex-row md:items-center md:justify-between">
+        <nav class="-mb-px flex flex-wrap gap-x-6" role="tablist">
           <a
             :for={tab <- @tab}
             href="#"
+            role="tab"
             @click.prevent={"openTab = setTabByName('#{tab.id}')"}
-            x-bind:class={"openTab === '#{tab.id}' ? activeClasses : inactiveClasses"}
-            class="border-b-2 py-4 w-full sm:w-fit text-sm font-medium hover:text-meta-5 md:text-base"
+            x-bind:aria-selected={"openTab === '#{tab.id}'"}
+            x-bind:class={"openTab === '#{tab.id}' ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'"}
+            class="inline-flex items-center gap-2 border-b-2 py-3 text-sm font-semibold transition-colors"
           >
-            <span class="text-xl">{tab.title}</span>
+            {tab.title}
+            <span
+              :if={tab[:count] not in [nil, 0]}
+              class="tabular rounded-full bg-surface-2 px-2 py-0.5 text-xs font-semibold text-muted"
+            >
+              {tab.count}
+            </span>
           </a>
-        </div>
-        <div class="mx-4 my-4 lg:my-0 flex gap-5 sm:gap-10 items-center">
+        </nav>
+        <div :if={@tab_append != []} class="flex items-center gap-4 pb-2 md:pb-0">
           {render_slot(@tab_append)}
         </div>
       </header>
-      <div class="mt-4 min-h-60 overflow-x-auto">
-        <div :for={tab <- @tab} x-show={"openTab === '#{tab.id}'"} class="font-medium leading-relaxed">
+      <div class="mt-4 min-h-40 overflow-x-auto">
+        <div :for={tab <- @tab} x-show={"openTab === '#{tab.id}'"} role="tabpanel">
           {render_slot(tab)}
         </div>
       </div>

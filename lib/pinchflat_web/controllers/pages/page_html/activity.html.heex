@@ -1,39 +1,26 @@
-<div class="mb-6">
-  <h2 class="text-title-md2 font-bold text-black dark:text-white">Activity</h2>
-</div>
+<.page_header
+  title="Activity"
+  description="What Pinchfork is doing now, what's waiting, and what went wrong. Running updates live; use the refresh button on the other tabs."
+/>
 
-<div class="rounded-sm border shadow-default border-strokedark bg-boxdark p-5">
-  <.tabbed_layout>
-    <:tab title="Active Tasks" id="active-tasks">
-      {live_render(@conn, Pinchflat.Pages.JobTableLive)}
-    </:tab>
-    <:tab title="Pending" id="pending">
-      {live_render(
-        @conn,
-        Pinchflat.Pages.HistoryTableLive,
-        session: %{"media_state" => "pending"}
-      )}
-    </:tab>
-    <:tab title="Retry" id="retry">
-      {live_render(
-        @conn,
-        Pinchflat.Pages.HistoryTableLive,
-        session: %{"media_state" => "retry"}
-      )}
-    </:tab>
-    <:tab title="Failed" id="failed">
-      {live_render(
-        @conn,
-        Pinchflat.Pages.HistoryTableLive,
-        session: %{"media_state" => "failed"}
-      )}
-    </:tab>
-    <:tab title="Downloaded" id="downloaded">
-      {live_render(
-        @conn,
-        Pinchflat.Pages.HistoryTableLive,
-        session: %{"media_state" => "downloaded"}
-      )}
-    </:tab>
-  </.tabbed_layout>
-</div>
+<.card>
+  <div class="px-5 pt-1 pb-5">
+    <.tabbed_layout>
+      <:tab title="Running" id="active-tasks" count={@counts.running}>
+        {live_render(@conn, Pinchflat.Pages.JobTableLive)}
+      </:tab>
+      <:tab title="Queued" id="pending" count={@counts.pending}>
+        {live_render(@conn, Pinchflat.Pages.HistoryTableLive, session: %{"media_state" => "pending"})}
+      </:tab>
+      <:tab title="Retrying" id="retry" count={@counts.retry}>
+        {live_render(@conn, Pinchflat.Pages.HistoryTableLive, session: %{"media_state" => "retry"})}
+      </:tab>
+      <:tab title="Failed" id="failed" count={@counts.failed}>
+        {live_render(@conn, Pinchflat.Pages.HistoryTableLive, session: %{"media_state" => "failed"})}
+      </:tab>
+      <:tab title="Downloaded" id="downloaded">
+        {live_render(@conn, Pinchflat.Pages.HistoryTableLive, session: %{"media_state" => "downloaded"})}
+      </:tab>
+    </.tabbed_layout>
+  </div>
+</.card>

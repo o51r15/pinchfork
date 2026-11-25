@@ -22,6 +22,13 @@ defmodule PinchflatWeb.Pages.PageController do
   end
 
   def activity(conn, _params) do
-    render(conn, :activity)
+    counts = %{
+      running: Pinchflat.Pages.JobTableLive.running_count(),
+      pending: Pinchflat.Pages.HistoryTableLive.count_for("pending"),
+      retry: Pinchflat.Pages.HistoryTableLive.count_for("retry"),
+      failed: Pinchflat.Pages.HistoryTableLive.count_for("failed")
+    }
+
+    render(conn, :activity, counts: counts)
   end
 end

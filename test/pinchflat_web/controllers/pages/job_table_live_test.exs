@@ -14,15 +14,15 @@ defmodule PinchflatWeb.Pages.JobTableLiveTest do
     test "shows message when no records", %{conn: conn} do
       {:ok, _view, html} = live_isolated(conn, JobTableLive, session: %{})
 
-      assert html =~ "Nothing Here!"
-      refute html =~ "Subject"
+      assert html =~ "Nothing is running right now"
+      refute html =~ "Attempt"
     end
 
     test "shows records when present", %{conn: conn} do
       {_source, _media_item, _task, _job} = create_media_item_job()
       {:ok, _view, html} = live_isolated(conn, JobTableLive, session: %{})
 
-      assert html =~ "Subject"
+      assert html =~ "Attempt"
     end
 
     test "doesn't show records when not in executing state", %{conn: conn} do
@@ -30,8 +30,8 @@ defmodule PinchflatWeb.Pages.JobTableLiveTest do
       {_source, _media_item, _task, _job} = create_media_item_job(:completed)
       {:ok, _view, html} = live_isolated(conn, JobTableLive, session: %{})
 
-      assert html =~ "Nothing Here!"
-      refute html =~ "Subject"
+      assert html =~ "Nothing is running right now"
+      refute html =~ "Attempt"
     end
   end
 
@@ -40,7 +40,7 @@ defmodule PinchflatWeb.Pages.JobTableLiveTest do
       {_source, _media_item, _task, _job} = create_media_item_job()
       {:ok, _view, html} = live_isolated(conn, JobTableLive, session: %{})
 
-      assert html =~ "Downloading Media"
+      assert html =~ "Downloading a video"
     end
 
     test "shows the media item title", %{conn: conn} do

@@ -82,6 +82,84 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     """
   end
 
+  @doc """
+  A labelled count for the source page's summary row.
+  """
+  attr :label, :string, required: true
+  attr :value, :integer, required: true
+  attr :help, :string, required: true
+  attr :class, :string, default: nil
+
+  def count_card(assigns) do
+    ~H"""
+    <div class="pf-card px-4 py-3">
+      <div class="text-xs font-medium text-muted">{@label}</div>
+      <div class={["tabular mt-0.5 text-2xl font-semibold tracking-tight", @class || "text-fg"]}>
+        <.localized_number number={@value} />
+      </div>
+      <div class="mt-0.5 text-[11px] leading-4 text-muted">{@help}</div>
+    </div>
+    """
+  end
+
+  def menu_item_class do
+    "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-fg hover:bg-surface-2"
+  end
+
+  @job_labels %{
+    "FastIndexingWorker" => "Checking for new uploads",
+    "MediaCollectionIndexingWorker" => "Full scan",
+    "MediaDownloadWorker" => "Downloading a video",
+    "SourceMetadataStorageWorker" => "Fetching artwork and description",
+    "FileSyncingWorker" => "Checking files on disk",
+    "MediaQualityUpgradeWorker" => "Upgrading video quality",
+    "SourceDeletionWorker" => "Deleting the source"
+  }
+
+  @doc """
+  A plain-language name for a background job, from its Oban worker module name.
+  """
+  def job_label(worker) do
+    short = worker |> String.split(".") |> List.last()
+
+    Map.get_lazy(@job_labels, short, fn ->
+      short
+      |> String.replace_suffix("Worker", "")
+      |> Macro.underscore()
+      |> String.replace("_", " ")
+      |> String.capitalize()
+    end)
+  end
+
+  def job_state_label("executing"), do: "Running"
+  def job_state_label("available"), do: "Queued"
+  def job_state_label("scheduled"), do: "Scheduled"
+  def job_state_label("retryable"), do: "Will retry"
+  def job_state_label(state), do: state |> to_string() |> String.capitalize()
+
+  def job_state_kind("executing"), do: :accent
+  def job_state_kind("available"), do: :info
+  def job_state_kind("retryable"), do: :warn
+  def job_state_kind(_), do: :neutral
+
+  @doc """
+  "3 h ago" style relative time for recent events, a date for older ones.
+  """
+  def time_ago(%DateTime{} = time) do
+    seconds = DateTime.diff(DateTime.utc_now(), time)
+
+    cond do
+      seconds < 60 -> "just now"
+      seconds < 3600 -> "#{div(seconds, 60)} min ago"
+      seconds < 86_400 -> "#{div(seconds, 3600)} h ago"
+      seconds < 2 * 86_400 -> "yesterday"
+      seconds < 30 * 86_400 -> "#{div(seconds, 86_400)} days ago"
+      true -> Calendar.strftime(time, "%-d %b %Y")
+    end
+  end
+
+  def time_ago(%NaiveDateTime{} = time), do: time |> DateTime.from_naive!("Etc/UTC") |> time_ago()
+
   defp compute_date_offset(days) do
     timezone = Application.get_env(:pinchflat, :timezone)
 

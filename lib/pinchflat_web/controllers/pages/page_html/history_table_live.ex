@@ -10,7 +10,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   alias PinchflatWeb.CustomComponents.TextComponents
   alias PinchflatWeb.Helpers.SortingHelpers
 
-  @limit 5
+  @limit 25
 
   @default_sort %{
     "downloaded" => {:media_downloaded_at, :desc},
@@ -21,9 +21,17 @@ defmodule Pinchflat.Pages.HistoryTableLive do
 
   def render(%{records: []} = assigns) do
     ~H"""
-    <div class="mb-4 flex items-center">
-      <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" />
-      <p class="ml-2">Nothing Here!</p>
+    <div class="flex items-center gap-3 rounded-lg border border-dashed border-line px-4 py-6 text-sm text-muted">
+      <button
+        type="button"
+        phx-click="reload_page"
+        class="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-line text-muted hover:bg-surface-2 hover:text-fg"
+        aria-label="Refresh"
+        title="Refresh"
+      >
+        <.icon name="hero-arrow-path-mini" class="h-4 w-4" />
+      </button>
+      {empty_message(@media_state)}
     </div>
     """
   end
@@ -31,12 +39,20 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   def render(assigns) do
     ~H"""
     <div>
-      <span class="mb-4 flex items-center">
-        <.icon_button icon_name="hero-arrow-path" class="h-10 w-10" phx-click="reload_page" tooltip="Refresh" />
-        <span class="ml-2">
+      <div class="mb-3 flex items-center gap-3 text-sm text-muted">
+        <button
+          type="button"
+          phx-click="reload_page"
+          class="grid h-8 w-8 place-items-center rounded-lg border border-line text-muted hover:bg-surface-2 hover:text-fg"
+          aria-label="Refresh"
+          title="Refresh"
+        >
+          <.icon name="hero-arrow-path-mini" class="h-4 w-4" />
+        </button>
+        <span class="tabular">
           Showing <.localized_number number={length(@records)} /> of <.localized_number number={@total_record_count} />
         </span>
-      </span>
+      </div>
       <div class="max-w-full overflow-x-auto">
         <.table rows={@records} table_class="text-white" sort_key={to_string(@sort_attr)} sort_direction={@sort_dir}>
           <:col :let={media_item} label="Title" class="max-w-xs">
@@ -82,20 +98,20 @@ defmodule Pinchflat.Pages.HistoryTableLive do
             </.subtle_link>
           </:col>
           <:col :let={media_item} :if={@media_state == "retry"} label="">
-            <.button type="button" phx-click="retry_now" phx-value-id={media_item.id} class="text-sm">
-              Retry Now
-            </.button>
+            <button type="button" phx-click="retry_now" phx-value-id={media_item.id} class={small_button()}>
+              Retry now
+            </button>
           </:col>
           <:col :let={media_item} :if={@media_state == "failed"} label="">
-            <.button
+            <button
               type="button"
               phx-click="force_retry"
               phx-value-id={media_item.id}
-              data-confirm="This clears all error info for this item and restarts the download from scratch. Proceed?"
-              class="text-sm"
+              data-confirm="Forget the earlier errors and download this video again from scratch?"
+              class={small_button()}
             >
-              Force Retry
-            </.button>
+              Try again
+            </button>
           </:col>
         </.table>
       </div>
@@ -175,6 +191,21 @@ defmodule Pinchflat.Pages.HistoryTableLive do
       end
 
     {:noreply, socket}
+  end
+
+  @doc """
+  How many videos are in a tab, for the Activity tab badges.
+  """
+  def count_for(media_state), do: media_state |> generate_base_query() |> Repo.aggregate(:count, :id)
+
+  defp empty_message("pending"), do: "Nothing is waiting to download."
+  defp empty_message("retry"), do: "Nothing is waiting to be retried."
+  defp empty_message("failed"), do: "No failed downloads."
+  defp empty_message("downloaded"), do: "Nothing has been downloaded yet."
+  defp empty_message(_), do: "Nothing here yet."
+
+  defp small_button do
+    "inline-flex h-8 items-center rounded-lg border border-line px-3 text-[13px] font-semibold text-fg hover:bg-surface-2"
   end
 
   defp fetch_pagination_attributes(base_query, page, sort_attr, sort_dir) do

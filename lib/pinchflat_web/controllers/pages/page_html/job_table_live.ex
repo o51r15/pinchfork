@@ -8,32 +8,40 @@ defmodule Pinchflat.Pages.JobTableLive do
 
   def render(%{tasks: []} = assigns) do
     ~H"""
-    <div class="mb-4 flex items-center">
-      <p>Nothing Here!</p>
+    <div class="flex items-center gap-3 rounded-lg border border-dashed border-line px-4 py-6 text-sm text-muted">
+      <.icon name="hero-pause-circle" class="h-5 w-5 shrink-0" />
+      Nothing is running right now. Downloads and scans show up here while they work.
     </div>
     """
   end
 
   def render(assigns) do
     ~H"""
-    <div class="max-w-full overflow-x-auto">
-      <.table rows={@tasks} table_class="text-white">
-        <:col :let={task} label="Task">
-          {worker_to_task_name(task.job.worker)}
-        </:col>
-        <:col :let={task} label="Subject" class="truncate max-w-xs">
-          <.subtle_link href={task_to_link(task)}>
-            {task_to_record_name(task)}
-          </.subtle_link>
-        </:col>
-        <:col :let={task} label="Attempt No.">
-          {task.job.attempt}
-        </:col>
-        <:col :let={task} label="Started At">
-          {format_datetime(task.job.attempted_at)}
-        </:col>
-      </.table>
-    </div>
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-left text-xs font-medium uppercase tracking-wide text-muted">
+          <th class="py-2 pr-3 font-medium">Job</th>
+          <th class="px-3 py-2 font-medium">Item</th>
+          <th class="px-3 py-2 font-medium">Attempt</th>
+          <th class="py-2 pl-3 font-medium">Started</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr :for={task <- @tasks} class="border-t border-line">
+          <td class="whitespace-nowrap py-2.5 pr-3">
+            <span class="inline-flex items-center gap-2 text-fg">
+              <span class="h-2 w-2 shrink-0 animate-pulse rounded-full bg-accent"></span>
+              {PinchflatWeb.Sources.SourceHTML.job_label(task.job.worker)}
+            </span>
+          </td>
+          <td class="max-w-md truncate px-3 py-2.5">
+            <.link href={task_to_link(task)} class="text-fg hover:text-accent">{task_to_record_name(task)}</.link>
+          </td>
+          <td class="tabular px-3 py-2.5 text-muted">{task.job.attempt}</td>
+          <td class="whitespace-nowrap py-2.5 pl-3 text-muted">{format_datetime(task.job.attempted_at)}</td>
+        </tr>
+      </tbody>
+    </table>
     """
   end
 
@@ -47,31 +55,26 @@ defmodule Pinchflat.Pages.JobTableLive do
     {:noreply, assign(socket, tasks: get_tasks())}
   end
 
+  @doc """
+  How many dashboard-visible jobs are running, for the Activity tab badge.
+  """
+  def running_count do
+    tasks_query() |> Repo.aggregate(:count)
+  end
+
   defp get_tasks do
-    TasksQuery.new()
-    |> TasksQuery.join_job()
-    |> where(^TasksQuery.in_state("executing"))
-    |> where(^TasksQuery.has_tag("show_in_dashboard"))
+    tasks_query()
     |> order_by([t, j], desc: j.attempted_at)
     |> Repo.all()
     |> Repo.preload([:media_item, :source])
   end
 
-  defp worker_to_task_name(worker) do
-    final_module_part =
-      worker
-      |> String.split(".")
-      |> Enum.at(-1)
-
-    map_worker_to_task_name(final_module_part)
+  defp tasks_query do
+    TasksQuery.new()
+    |> TasksQuery.join_job()
+    |> where(^TasksQuery.in_state("executing"))
+    |> where(^TasksQuery.has_tag("show_in_dashboard"))
   end
-
-  defp map_worker_to_task_name("FastIndexingWorker"), do: "Fast Indexing Source"
-  defp map_worker_to_task_name("MediaDownloadWorker"), do: "Downloading Media"
-  defp map_worker_to_task_name("MediaCollectionIndexingWorker"), do: "Indexing Source"
-  defp map_worker_to_task_name("MediaQualityUpgradeWorker"), do: "Upgrading Media Quality"
-  defp map_worker_to_task_name("SourceMetadataStorageWorker"), do: "Fetching Source Metadata"
-  defp map_worker_to_task_name(other), do: other <> " (Report to Devs)"
 
   defp task_to_record_name(%Task{} = task) do
     case task do
