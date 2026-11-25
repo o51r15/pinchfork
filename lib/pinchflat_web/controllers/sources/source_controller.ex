@@ -428,6 +428,7 @@ defmodule PinchflatWeb.Sources.SourceController do
     case result do
       {:ok, path} ->
         Sources.update_source(source, %{custom_poster_filepath: path}, run_post_commit_tasks: false)
+
         conn
         |> put_flash(:info, "Poster saved.")
         |> redirect(to: ~p"/sources/#{source}/edit_metadata?tab=poster")

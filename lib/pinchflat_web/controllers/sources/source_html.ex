@@ -141,11 +141,13 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     assigns = assign(assigns, :checked, Phoenix.HTML.Form.normalize_value("checkbox", assigns.field.value))
 
     ~H"""
-    <label class="inline-flex cursor-pointer items-center gap-2 text-[13px] text-muted" title="When on, refreshing from YouTube won't change this">
+    <label
+      class="inline-flex cursor-pointer items-center gap-2 text-[13px] text-muted"
+      title="When on, refreshing from YouTube won't change this"
+    >
       <input type="hidden" name={@field.name} value="false" />
       <input type="checkbox" id={@field.id} name={@field.name} value="true" checked={@checked} class="peer sr-only" />
-      <.icon name="hero-lock-closed-mini" class="h-4 w-4 peer-checked:text-accent" />
-      Keep when refreshing
+      <.icon name="hero-lock-closed-mini" class="h-4 w-4 peer-checked:text-accent" /> Keep when refreshing
       <span class="relative h-5 w-9 rounded-full bg-surface-3 transition-colors peer-checked:bg-accent peer-checked:[&>span]:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/50">
         <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-[#ffffff] shadow transition-transform"></span>
       </span>
