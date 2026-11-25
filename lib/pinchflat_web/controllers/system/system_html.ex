@@ -2,4 +2,71 @@ defmodule PinchflatWeb.System.SystemHTML do
   use PinchflatWeb, :html
 
   embed_templates "system_html/*"
+
+  @doc """
+  One line of the Status page's health panel: what it is, whether it's fine, and details.
+  """
+  attr :icon, :string, required: true
+  attr :name, :string, required: true
+  attr :state, :atom, values: [:ok, :warn, :bad], required: true
+  attr :status, :string, required: true
+  attr :rest, :global
+  slot :inner_block
+  slot :action
+
+  def health_row(assigns) do
+    ~H"""
+    <li class="flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-line px-5 py-4" {@rest}>
+      <span class={["grid h-9 w-9 shrink-0 place-items-center rounded-lg", state_bg(@state)]}>
+        <.icon name={@icon} class="h-5 w-5" />
+      </span>
+      <div class="min-w-[220px] flex-1">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="text-sm font-semibold text-fg">{@name}</span>
+          <.status_chip kind={@state}>{@status}</.status_chip>
+        </div>
+        <div class="mt-0.5 text-[13px] text-muted">{render_slot(@inner_block)}</div>
+      </div>
+      <div :if={@action != []} class="shrink-0">{render_slot(@action)}</div>
+    </li>
+    """
+  end
+
+  defp state_bg(:ok), do: "bg-ok/15 text-ok"
+  defp state_bg(:warn), do: "bg-warn/15 text-warn"
+  defp state_bg(:bad), do: "bg-bad/15 text-bad"
+
+  # Under 5% or 20 GB free is a problem; under 15% is worth a look
+  def disk_state(%{free: free, used_pct: pct}) do
+    cond do
+      pct >= 95 or free < 20 * 1_000_000_000 -> :bad
+      pct >= 85 -> :warn
+      true -> :ok
+    end
+  end
+
+  def disk_bar_class(disk) do
+    case disk_state(disk) do
+      :bad -> "bg-bad"
+      :warn -> "bg-warn"
+      :ok -> "bg-accent"
+    end
+  end
+
+  def human_bytes(nil), do: "0 B"
+  def human_bytes(bytes) when bytes >= 1_000_000_000_000, do: "#{Float.round(bytes / 1_000_000_000_000, 1)} TB"
+  def human_bytes(bytes) when bytes >= 1_000_000_000, do: "#{Float.round(bytes / 1_000_000_000, 1)} GB"
+  def human_bytes(bytes) when bytes >= 1_000_000, do: "#{Float.round(bytes / 1_000_000, 1)} MB"
+  def human_bytes(bytes) when bytes >= 1_000, do: "#{Float.round(bytes / 1_000, 1)} KB"
+  def human_bytes(bytes), do: "#{bytes} B"
+
+  def about_rows(about) do
+    [
+      {"Pinchfork", "v#{about.pinchfork_version}"},
+      {"Based on Pinchflat", about.pinchflat_upstream},
+      {"Elixir", about.elixir_version},
+      {"Erlang/OTP", about.otp_version},
+      {"yt-dlp", about.yt_dlp_version}
+    ]
+  end
 end

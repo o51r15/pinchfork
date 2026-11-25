@@ -1,157 +1,131 @@
-<div class="mb-6">
-  <h2 class="text-title-md2 font-bold text-white">System Status</h2>
-</div>
+<.page_header
+  title="Status"
+  description="Whether everything Pinchfork depends on is working, and what's in your library."
+>
+  <:actions>
+    <button
+      type="button"
+      class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3.5 text-sm font-semibold text-fg hover:bg-surface-2"
+      x-data="{ copied: false }"
+      x-on:click={"navigator.clipboard.writeText(#{Jason.encode!(@diagnostic_info)}).then(() => { copied = true; setTimeout(() => copied = false, 2000) })"}
+    >
+      <.icon name="hero-clipboard-document-mini" class="h-4 w-4" />
+      <span x-text="copied ? 'Copied' : 'Copy diagnostic info'">Copy diagnostic info</span>
+    </button>
+  </:actions>
+</.page_header>
 
-<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-  <%!-- About --%>
-  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
-    <h3 class="text-lg font-semibold text-white mb-4">About</h3>
-    <table class="w-full text-sm">
-      <tbody>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400 w-1/2">Pinchfork</td>
-          <td class="py-2 text-white font-mono">v{@about.pinchfork_version}</td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">Pinchflat upstream</td>
-          <td class="py-2 text-white font-mono">{@about.pinchflat_upstream}</td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">Elixir</td>
-          <td class="py-2 text-white font-mono">{@about.elixir_version}</td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">OTP</td>
-          <td class="py-2 text-white font-mono">{@about.otp_version}</td>
-        </tr>
-        <tr>
-          <td class="py-2 text-gray-400">yt-dlp</td>
-          <td class="py-2 text-white font-mono">{@about.yt_dlp_version}</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="mt-4">
-      <.button
-        color="bg-meta-4 hover:bg-meta-3"
-        rounding="rounded-lg"
-        x-data="{ copied: false }"
-        x-on:click={"copyWithCallbacks(`#{@diagnostic_info}`, () => copied = true, () => copied = false)"}
+<.card title="Health" id="health-card">
+  <ul>
+    <.health_row icon="hero-circle-stack" name="Database" state={:ok} status="Connected">
+      {@pg_version} · {@db_size}
+    </.health_row>
+
+    <.health_row
+      icon="hero-arrow-down-tray"
+      name="yt-dlp"
+      state={if @about.yt_dlp_version == "—", do: :warn, else: :ok}
+      status={if @about.yt_dlp_version == "—", do: "Version unknown", else: "Installed"}
+    >
+      <span class="font-mono">{@about.yt_dlp_version}</span>
+      · updated daily · <.link href={~p"/system/updates"} class="text-accent hover:underline">Updates</.link>
+    </.health_row>
+
+    <.health_row
+      icon="hero-key"
+      name="PO token server"
+      state={if @po_token_status == :up, do: :ok, else: :bad}
+      status={if @po_token_status == :up, do: "Reachable", else: "Not reachable"}
+    >
+      bgutil-provider:4416 · needed by some download clients
+      <:action>
+        <.link
+          href={~p"/system/test_po_token"}
+          method="post"
+          class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-semibold text-fg hover:bg-surface-2"
+        >
+          Get a test token
+        </.link>
+      </:action>
+    </.health_row>
+
+    <.health_row
+      :if={@disk}
+      icon="hero-server"
+      name="Disk space"
+      state={disk_state(@disk)}
+      status={"#{human_bytes(@disk.free)} free"}
+    >
+      <span class="font-mono">{@disk.path}</span>
+      · {@disk.used_pct}% of {human_bytes(@disk.total)} used
+      <div class="mt-2 h-1.5 w-full max-w-sm overflow-hidden rounded-full bg-surface-3">
+        <div class={["h-full rounded-full", disk_bar_class(@disk)]} style={"width: #{min(@disk.used_pct, 100)}%"}></div>
+      </div>
+    </.health_row>
+
+    <.health_row
+      icon="hero-queue-list"
+      name="Background jobs"
+      state={if Map.get(@queue_counts, "discarded", 0) > 0, do: :warn, else: :ok}
+      status={"#{Map.get(@queue_counts, "executing", 0)} running"}
+    >
+      {Map.get(@queue_counts, "available", 0) + Map.get(@queue_counts, "scheduled", 0)} waiting · {Map.get(
+        @queue_counts,
+        "retryable",
+        0
+      )} retrying · {Map.get(@queue_counts, "discarded", 0)} gave up
+      <:action>
+        <.link href={~p"/activity"} class="text-[13px] font-semibold text-accent hover:underline">Activity</.link>
+      </:action>
+    </.health_row>
+  </ul>
+</.card>
+
+<div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+  <.card title="Library" id="library-card">
+    <:actions>
+      <.link href={~p"/sources"} class="text-[13px] font-semibold text-accent hover:underline">Sources</.link>
+    </:actions>
+    <dl class="grid grid-cols-2 gap-px border-t border-line bg-line">
+      <div class="bg-surface px-5 py-4">
+        <dt class="text-xs font-medium text-muted">Sources</dt>
+        <dd class="tabular mt-0.5 text-2xl font-semibold text-fg"><.localized_number number={@library.sources} /></dd>
+      </div>
+      <div class="bg-surface px-5 py-4">
+        <dt class="text-xs font-medium text-muted">Media profiles</dt>
+        <dd class="tabular mt-0.5 text-2xl font-semibold text-fg"><.localized_number number={@library.profiles} /></dd>
+      </div>
+      <div class="bg-surface px-5 py-4">
+        <dt class="text-xs font-medium text-muted">Videos downloaded</dt>
+        <dd class="tabular mt-0.5 text-2xl font-semibold text-fg">
+          <.localized_number number={@library.downloaded} />
+          <span class="text-sm font-normal text-muted">of <.localized_number number={@library.videos} /></span>
+        </dd>
+      </div>
+      <div class="bg-surface px-5 py-4">
+        <dt class="text-xs font-medium text-muted">Library size</dt>
+        <dd class="tabular mt-0.5 text-2xl font-semibold text-fg">{human_bytes(@library.size_bytes)}</dd>
+      </div>
+    </dl>
+  </.card>
+
+  <.card title="About" id="about-card">
+    <dl class="border-t border-line text-sm">
+      <div
+        :for={{label, value} <- about_rows(@about)}
+        class="flex justify-between gap-4 border-b border-line px-5 py-2.5 last:border-b-0"
       >
-        Copy Diagnostic Info
-        <span x-show="copied" x-transition.duration.150ms>
-          <.icon name="hero-check" class="ml-2 h-4 w-4" />
-        </span>
-      </.button>
-    </div>
-  </div>
-
-  <%!-- Database --%>
-  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
-    <h3 class="text-lg font-semibold text-white mb-4">Database</h3>
-    <table class="w-full text-sm">
-      <tbody>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400 w-1/2">Status</td>
-          <td class="py-2">
-            <span class="inline-flex items-center gap-1.5 text-green-400">
-              <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span> Connected
-            </span>
-          </td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">Version</td>
-          <td class="py-2 text-white font-mono">{@pg_version}</td>
-        </tr>
-        <tr>
-          <td class="py-2 text-gray-400">Size</td>
-          <td class="py-2 text-white font-mono">{@db_size}</td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <%!-- Queue Health --%>
-  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
-    <h3 class="text-lg font-semibold text-white mb-4">Queue Health</h3>
-    <table class="w-full text-sm">
-      <tbody>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400 w-1/2">Executing</td>
-          <td class="py-2 text-white font-mono">
-            <.localized_number number={Map.get(@queue_counts, "executing", 0)} />
-          </td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">Pending</td>
-          <td class="py-2 text-white font-mono">
-            <.localized_number number={Map.get(@queue_counts, "available", 0) + Map.get(@queue_counts, "scheduled", 0)} />
-          </td>
-        </tr>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400">Retrying</td>
-          <td class="py-2 text-white font-mono">
-            <.localized_number number={Map.get(@queue_counts, "retryable", 0)} />
-          </td>
-        </tr>
-        <tr>
-          <td class="py-2 text-gray-400">Discarded</td>
-          <td class="py-2">
-            <span class={
-              if Map.get(@queue_counts, "discarded", 0) > 0, do: "text-red-400 font-mono", else: "text-white font-mono"
-            }>
-              <.localized_number number={Map.get(@queue_counts, "discarded", 0)} />
-            </span>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-  </div>
-
-  <%!-- Logs --%>
-  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
-    <h3 class="text-lg font-semibold text-white mb-4">Logs</h3>
-    <p class="text-sm text-gray-400 mb-4">
-      Download the application log file for troubleshooting. Contains yt-dlp output,
-      download events, and error details.
-    </p>
-    <.link href={~p"/system/logs"}>
-      <.button color="bg-meta-4 hover:bg-meta-3" rounding="rounded-lg">
-        <.icon name="hero-arrow-down-tray" class="mr-2 h-4 w-4" /> Download Log File
-      </.button>
-    </.link>
-  </div>
-
-  <%!-- PO Token Server --%>
-  <div class="rounded-sm border border-stroke bg-white px-6 py-5 shadow-default dark:border-strokedark dark:bg-boxdark">
-    <h3 class="text-lg font-semibold text-white mb-4">PO Token Server</h3>
-    <table class="w-full text-sm">
-      <tbody>
-        <tr class="border-b border-strokedark">
-          <td class="py-2 text-gray-400 w-1/2">Status</td>
-          <td class="py-2">
-            <%= if @po_token_status == :up do %>
-              <span class="inline-flex items-center gap-1.5 text-green-400">
-                <span class="w-2 h-2 rounded-full bg-green-400 inline-block"></span> Up
-              </span>
-            <% else %>
-              <span class="inline-flex items-center gap-1.5 text-red-400">
-                <span class="w-2 h-2 rounded-full bg-red-400 inline-block"></span> Down
-              </span>
-            <% end %>
-          </td>
-        </tr>
-        <tr>
-          <td class="py-2 text-gray-400">Container</td>
-          <td class="py-2 text-white font-mono text-xs">bgutil-provider:4416</td>
-        </tr>
-      </tbody>
-    </table>
-    <div class="mt-4">
-      <.link href={~p"/system/test_po_token"} method="post">
-        <.button color="bg-meta-4 hover:bg-meta-3" rounding="rounded-lg">
-          <.icon name="hero-bolt" class="mr-2 h-4 w-4" /> Test Token Server
-        </.button>
+        <dt class="text-muted">{label}</dt>
+        <dd class="font-mono text-fg">{value}</dd>
+      </div>
+    </dl>
+    <div class="flex flex-wrap gap-2 border-t border-line px-5 py-4">
+      <.link
+        href={~p"/system/logs"}
+        class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-semibold text-fg hover:bg-surface-2"
+      >
+        <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" /> Download logs
       </.link>
     </div>
-  </div>
+  </.card>
 </div>

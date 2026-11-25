@@ -126,7 +126,7 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("14-media-profiles", conn |> get(~p"/media_profiles") |> html_response(200))
       snapshot("15-media-profile-new", conn |> get(~p"/media_profiles/new") |> html_response(200))
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
-      snapshot("17-stats", conn |> get(~p"/stats") |> html_response(200))
+      snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end
   end
 

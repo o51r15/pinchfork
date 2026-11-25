@@ -22,6 +22,8 @@ defmodule Pinchflat.Utils.NumberUtils do
   """
   def human_byte_size(number, opts \\ [])
   def human_byte_size(nil, opts), do: human_byte_size(0, opts)
+  # Postgres returns SUM() over a bigint column as numeric, which arrives as a Decimal
+  def human_byte_size(%Decimal{} = number, opts), do: human_byte_size(Decimal.to_integer(number), opts)
 
   def human_byte_size(number, opts) do
     precision = Keyword.get(opts, :precision, 2)
