@@ -14,16 +14,23 @@ defmodule PinchflatWeb.CustomComponents.UiComponents do
   def setup_step_names, do: @setup_steps
 
   @doc """
-  The Pinchfork mark. A placeholder until the final logo is drawn (planned as the last step
-  before deployment).
+  The Pinchfork mark: a three-tine pitchfork whose handle ends in a download arrow, on a
+  rounded teal square. The same drawing is priv/static/images/pinchfork-mark.svg (favicon).
   """
   attr :class, :string, default: "h-7 w-7"
 
   def brand_mark(assigns) do
     ~H"""
-    <svg class={@class} viewBox="0 0 28 28" aria-hidden="true">
-      <circle cx="14" cy="14" r="12" class="fill-accent" />
-      <path d="M11 9l7 5-7 5z" class="fill-onaccent" />
+    <svg class={@class} viewBox="0 0 64 64" aria-hidden="true">
+      <rect width="64" height="64" rx="15" class="fill-accent" />
+      <path
+        d="M20 10 V21 Q20 30 32 30 Q44 30 44 21 V10 M32 10 V52 M24 44.5 L32 53 L40 44.5"
+        class="stroke-onaccent"
+        stroke-width="5"
+        fill="none"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      />
     </svg>
     """
   end
