@@ -134,6 +134,15 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
       snapshot("14-media-profiles", conn |> get(~p"/media_profiles") |> html_response(200))
       snapshot("15-media-profile-new", conn |> get(~p"/media_profiles/new") |> html_response(200))
+
+      snapshot_live("15b-media-profile-edit", conn, ~p"/media_profiles/#{profile}/edit", fn view ->
+        view |> element("#toggle-advanced") |> render_click()
+
+        view
+        |> form("#media-profile-form", media_profile: %{sponsorblock_behaviour: "mark", preferred_resolution: "720p"})
+        |> render_change()
+      end)
+
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end

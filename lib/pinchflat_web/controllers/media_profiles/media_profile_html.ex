@@ -1,47 +1,7 @@
 defmodule PinchflatWeb.MediaProfiles.MediaProfileHTML do
   use PinchflatWeb, :html
 
-  alias Pinchflat.Profiles.MediaProfile
-
   embed_templates "media_profile_html/*"
-
-  @doc """
-  Renders a media_profile form.
-  """
-  attr :changeset, Ecto.Changeset, required: true
-  attr :action, :string, required: true
-  attr :method, :string, required: true
-
-  def media_profile_form(assigns)
-
-  def friendly_format_type_options do
-    [
-      {"Include (default)", :include},
-      {"Exclude", :exclude},
-      {"Only", :only}
-    ]
-  end
-
-  def friendly_resolution_options do
-    [
-      {"8k", "4320p"},
-      {"4k", "2160p"},
-      {"1440p", "1440p"},
-      {"1080p", "1080p"},
-      {"720p", "720p"},
-      {"480p", "480p"},
-      {"360p", "360p"},
-      {"Audio Only", "audio"}
-    ]
-  end
-
-  def friendly_sponsorblock_options do
-    [
-      {"Disabled (default)", "disabled"},
-      {"Mark Segments as Chapters", "mark"},
-      {"Remove Segments", "remove"}
-    ]
-  end
 
   def frieldly_sponsorblock_categories do
     [
@@ -102,26 +62,5 @@ defmodule PinchflatWeb.MediaProfiles.MediaProfileHTML do
       upload_date
       duration_string
     )a
-  end
-
-  def preset_options do
-    [
-      {"Default", "default"},
-      {"Media Center (Plex, Jellyfin, Kodi, etc.)", "media_center"},
-      {"Music", "audio"},
-      {"Archiving", "archiving"}
-    ]
-  end
-
-  defp default_output_template do
-    %MediaProfile{}.output_path_template
-  end
-
-  defp media_center_output_template do
-    "/shows/{{ source_custom_name }}/{{ season_by_year__episode_by_date_and_index }} - {{ title }}.{{ ext }}"
-  end
-
-  defp audio_output_template do
-    "/music/{{ artist_name }}/{{ title }}.{{ ext }}"
   end
 end

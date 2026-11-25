@@ -72,9 +72,11 @@ defmodule PinchflatWeb.Router do
       live "/sources/new", Sources.SourceNewLive, :new
       live "/sources/:id/edit", Sources.SourceEditLive, :edit
       live "/settings/:page", Settings.SettingsLive, :show
+      live "/media_profiles/new", MediaProfiles.MediaProfileFormLive, :new
+      live "/media_profiles/:id/edit", MediaProfiles.MediaProfileFormLive, :edit
     end
 
-    resources "/media_profiles", MediaProfiles.MediaProfileController
+    resources "/media_profiles", MediaProfiles.MediaProfileController, only: [:index, :show, :delete]
     resources "/search", Searches.SearchController, only: [:show], singleton: true
 
     get "/settings", Settings.SettingController, :show

@@ -28,62 +28,10 @@ defmodule PinchflatWeb.MediaProfiles.MediaProfileController do
     render(conn, :index, media_profiles: Repo.all(media_profiles_query))
   end
 
-  def new(conn, params) do
-    # Preload an existing media profile for faster creation
-    cs_struct =
-      case to_string(params["template_id"]) do
-        "" -> %MediaProfile{}
-        template_id -> Repo.get(MediaProfile, template_id) || %MediaProfile{}
-      end
-
-    render(conn, :new,
-      changeset:
-        Profiles.change_media_profile(%MediaProfile{
-          cs_struct
-          | id: nil,
-            name: nil,
-            marked_for_deletion_at: nil
-        })
-    )
-  end
-
-  def create(conn, %{"media_profile" => media_profile_params}) do
-    case Profiles.create_media_profile(media_profile_params) do
-      {:ok, media_profile} ->
-        conn
-        |> put_flash(:info, "Media profile created successfully.")
-        |> redirect(to: ~p"/media_profiles/#{media_profile}")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :new, changeset: changeset)
-    end
-  end
-
   def show(conn, %{"id" => id}) do
     media_profile = Profiles.get_media_profile!(id)
 
     render(conn, :show, media_profile: media_profile, sources: sources_using(media_profile))
-  end
-
-  def edit(conn, %{"id" => id}) do
-    media_profile = Profiles.get_media_profile!(id)
-    changeset = Profiles.change_media_profile(media_profile)
-
-    render(conn, :edit, media_profile: media_profile, changeset: changeset)
-  end
-
-  def update(conn, %{"id" => id, "media_profile" => media_profile_params}) do
-    media_profile = Profiles.get_media_profile!(id)
-
-    case Profiles.update_media_profile(media_profile, media_profile_params) do
-      {:ok, media_profile} ->
-        conn
-        |> put_flash(:info, "Media profile updated successfully.")
-        |> redirect(to: ~p"/media_profiles/#{media_profile}")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :edit, media_profile: media_profile, changeset: changeset)
-    end
   end
 
   # A profile can only be deleted once nothing uses it. Deleting a profile used to take

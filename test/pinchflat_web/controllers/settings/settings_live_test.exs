@@ -318,10 +318,12 @@ defmodule PinchflatWeb.Settings.SettingsLiveTest do
     end
 
     test "hides the methods that don't exist yet", %{conn: conn} do
-      {:ok, _view, html} = live(conn, ~p"/settings/discovery")
+      {:ok, view, _html} = live(conn, ~p"/settings/discovery")
+      # Visible text only: CSRF tokens in the markup are random and can contain "G1"
+      text = view |> render() |> Floki.parse_fragment!() |> Floki.text()
 
-      refute html =~ "LLM"
-      refute html =~ "G1"
+      refute text =~ "LLM"
+      refute text =~ "G1"
     end
 
     test "restores a dismissed channel", %{conn: conn} do

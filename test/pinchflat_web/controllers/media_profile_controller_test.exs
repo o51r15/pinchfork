@@ -8,13 +8,6 @@ defmodule PinchflatWeb.MediaProfileControllerTest do
   alias Pinchflat.Settings
   alias Pinchflat.Profiles.MediaProfileDeletionWorker
 
-  @create_attrs %{name: "some name", output_path_template: "output_template.{{ ext }}"}
-  @update_attrs %{
-    name: "some updated name",
-    output_path_template: "new_output_template.{{ ext }}"
-  }
-  @invalid_attrs %{name: nil, output_path_template: nil}
-
   setup do
     Settings.set(onboarding: false)
 
@@ -34,68 +27,6 @@ defmodule PinchflatWeb.MediaProfileControllerTest do
       profile = media_profile_fixture(marked_for_deletion_at: DateTime.utc_now())
       conn = get(conn, ~p"/media_profiles")
       refute html_response(conn, 200) =~ profile.name
-    end
-  end
-
-  describe "new media_profile" do
-    test "renders form", %{conn: conn} do
-      conn = get(conn, ~p"/media_profiles/new")
-      assert html_response(conn, 200) =~ "New Media Profile"
-    end
-  end
-
-  describe "create media_profile" do
-    test "redirects to show when data is valid", %{conn: conn} do
-      conn = post(conn, ~p"/media_profiles", media_profile: @create_attrs)
-
-      assert %{id: id} = redirected_params(conn)
-      assert redirected_to(conn) == ~p"/media_profiles/#{id}"
-
-      conn = get(conn, ~p"/media_profiles/#{id}")
-      assert html_response(conn, 200) =~ "Media Profile"
-    end
-
-    test "renders errors when data is invalid", %{conn: conn} do
-      conn = post(conn, ~p"/media_profiles", media_profile: @invalid_attrs)
-      assert html_response(conn, 200) =~ "New Media Profile"
-    end
-
-    test "preloads some attributes when using a template", %{conn: conn} do
-      profile = media_profile_fixture(name: "My first profile", download_subs: true, sub_langs: "de")
-
-      conn = get(conn, ~p"/media_profiles/new", %{"template_id" => profile.id})
-      assert html_response(conn, 200) =~ "New Media Profile"
-      assert html_response(conn, 200) =~ profile.sub_langs
-      refute html_response(conn, 200) =~ profile.name
-    end
-  end
-
-  describe "edit media_profile" do
-    setup [:create_media_profile]
-
-    test "renders form for editing chosen media_profile", %{
-      conn: conn,
-      media_profile: media_profile
-    } do
-      conn = get(conn, ~p"/media_profiles/#{media_profile}/edit")
-      assert html_response(conn, 200) =~ "Editing \"#{media_profile.name}\""
-    end
-  end
-
-  describe "update media_profile" do
-    setup [:create_media_profile]
-
-    test "redirects when data is valid", %{conn: conn, media_profile: media_profile} do
-      conn = put(conn, ~p"/media_profiles/#{media_profile}", media_profile: @update_attrs)
-      assert redirected_to(conn) == ~p"/media_profiles/#{media_profile}"
-
-      conn = get(conn, ~p"/media_profiles/#{media_profile}")
-      assert html_response(conn, 200) =~ "some updated name"
-    end
-
-    test "renders errors when data is invalid", %{conn: conn, media_profile: media_profile} do
-      conn = put(conn, ~p"/media_profiles/#{media_profile}", media_profile: @invalid_attrs)
-      assert html_response(conn, 200) =~ "Editing \"#{media_profile.name}\""
     end
   end
 
