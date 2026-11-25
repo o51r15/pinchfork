@@ -66,6 +66,32 @@ defmodule PinchflatWeb.SourceControllerTest do
     end
   end
 
+  describe "show source" do
+    test "explains why videos were skipped", %{conn: conn} do
+      profile = media_profile_fixture(name: "TV Shows", shorts_behaviour: :exclude, livestream_behaviour: :exclude)
+      source = source_fixture(media_profile_id: profile.id, download_cutoff_date: ~D[2020-01-01])
+
+      media_item_fixture(source_id: source.id, media_filepath: nil, short_form_content: true)
+      media_item_fixture(source_id: source.id, media_filepath: nil, livestream: true)
+      media_item_fixture(source_id: source.id, media_filepath: nil, livestream: true)
+      media_item_fixture(source_id: source.id, media_filepath: nil, uploaded_at: ~U[2019-06-01 00:00:00Z])
+
+      html = conn |> get(~p"/sources/#{source}") |> html_response(200)
+
+      assert html =~ "1 Short, 2 livestreams"
+      assert html =~ "TV Shows profile"
+      assert html =~ "1 before the cutoff date"
+      assert html =~ "source settings"
+    end
+
+    test "says nothing about reasons when nothing was skipped", %{conn: conn} do
+      source = source_fixture()
+      html = conn |> get(~p"/sources/#{source}") |> html_response(200)
+
+      assert html =~ "Left out by download rules"
+    end
+  end
+
   describe "update source" do
     setup [:create_source]
 

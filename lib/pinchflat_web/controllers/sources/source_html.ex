@@ -102,6 +102,35 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     """
   end
 
+  @doc """
+  Groups skip reasons by what decides them, so the card can link to the right place:
+  the media profile (Shorts, livestreams) or the source's own settings.
+  """
+  def group_skip_reasons(reasons) do
+    reasons
+    |> Enum.group_by(fn {reason, _count} -> skip_reason_owner(reason) end)
+    |> Enum.sort_by(fn {owner, _} -> Enum.find_index([:profile, :source, :other], &(&1 == owner)) end)
+  end
+
+  defp skip_reason_owner(reason) when reason in [:short, :livestream, :profile_only], do: :profile
+  defp skip_reason_owner(reason) when reason in [:members, :public, :cutoff, :duration, :title], do: :source
+  defp skip_reason_owner(_reason), do: :other
+
+  def skip_reason_text(:short, 1), do: "1 Short"
+  def skip_reason_text(:short, n), do: "#{n} Shorts"
+  def skip_reason_text(:livestream, 1), do: "1 livestream"
+  def skip_reason_text(:livestream, n), do: "#{n} livestreams"
+  def skip_reason_text(:profile_only, n), do: "#{n} regular #{plural(n, "video")}"
+  def skip_reason_text(:members, n), do: "#{n} members-only"
+  def skip_reason_text(:public, n), do: "#{n} public #{plural(n, "video")}"
+  def skip_reason_text(:cutoff, n), do: "#{n} before the cutoff date"
+  def skip_reason_text(:duration, n), do: "#{n} too short or too long"
+  def skip_reason_text(:title, n), do: "#{n} not matching the title filter"
+  def skip_reason_text(_other, n), do: "#{n} for other reasons"
+
+  defp plural(1, word), do: word
+  defp plural(_, word), do: word <> "s"
+
   def menu_item_class do
     "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-fg hover:bg-surface-2"
   end

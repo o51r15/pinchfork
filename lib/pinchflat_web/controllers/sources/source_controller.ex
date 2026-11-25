@@ -199,7 +199,90 @@ defmodule PinchflatWeb.Sources.SourceController do
       |> Map.put(:pending, pending_count)
       |> Map.put(:skipped, skipped)
 
-    render(conn, :show, source: source, pending_tasks: pending_tasks, counts: counts)
+    render(conn, :show,
+      source: source,
+      pending_tasks: pending_tasks,
+      counts: counts,
+      skip_reasons: if(skipped > 0, do: skip_reasons(source), else: [])
+    )
+  end
+
+  # Why the "skipped" videos were left out. Nothing stores this per video (the download rules
+  # are evaluated on the fly), so it's worked out here with the same rules as
+  # MediaQuery.pending/0, first match wins. Returns [{reason, count}] in display order.
+  @skip_reason_order [:short, :livestream, :profile_only, :members, :public, :cutoff, :duration, :title, :other]
+
+  defp skip_reasons(source) do
+    profile = source.media_profile
+
+    pending_ids =
+      MediaQuery.new()
+      |> MediaQuery.require_assoc(:media_profile)
+      |> where(^MediaQuery.for_source(source))
+      |> where(^dynamic(^MediaQuery.staged_pending()))
+      |> select([mi], mi.id)
+      |> Repo.all()
+      |> MapSet.new()
+
+    from(mi in MediaItem,
+      where: mi.source_id == ^source.id and is_nil(mi.media_filepath),
+      where: is_nil(mi.error_type) or fragment("?::text <> 'permanent'", mi.error_type),
+      where:
+        is_nil(mi.download_prevented_reason) or
+          fragment("?::text NOT IN ('manual', 'user_script')", mi.download_prevented_reason),
+      # Retrying items have their own bucket
+      where: fragment("NOT (COALESCE(?::text = 'transient', false) AND ? = false)", mi.error_type, mi.prevent_download)
+    )
+    |> Repo.all()
+    |> Enum.reject(&MapSet.member?(pending_ids, &1.id))
+    |> Enum.frequencies_by(&skip_reason(&1, source, profile))
+    |> Enum.sort_by(fn {reason, _} -> Enum.find_index(@skip_reason_order, &(&1 == reason)) end)
+  end
+
+  defp skip_reason(item, source, profile) do
+    prevented = to_string(item.download_prevented_reason)
+
+    cond do
+      String.starts_with?(prevented, "policy_members") -> :members
+      String.starts_with?(prevented, "policy_public") -> :public
+      item.short_form_content == true and profile.shorts_behaviour == :exclude -> :short
+      item.livestream == true and profile.livestream_behaviour == :exclude -> :livestream
+      not matches_only_rules?(item, profile) -> :profile_only
+      before_cutoff?(item, source) -> :cutoff
+      outside_duration?(item, source) -> :duration
+      not title_matches?(item, source) -> :title
+      true -> :other
+    end
+  end
+
+  defp matches_only_rules?(item, %{shorts_behaviour: :only, livestream_behaviour: :only}),
+    do: item.short_form_content == true or item.livestream == true
+
+  defp matches_only_rules?(item, %{shorts_behaviour: :only}), do: item.short_form_content == true
+  defp matches_only_rules?(item, %{livestream_behaviour: :only}), do: item.livestream == true
+  defp matches_only_rules?(_item, _profile), do: true
+
+  defp before_cutoff?(_item, %{download_cutoff_date: nil}), do: false
+  defp before_cutoff?(%{uploaded_at: nil}, _source), do: false
+
+  defp before_cutoff?(item, source) do
+    Date.compare(DateTime.to_date(item.uploaded_at), source.download_cutoff_date) == :lt
+  end
+
+  defp outside_duration?(%{duration_seconds: nil}, _source), do: false
+
+  defp outside_duration?(item, source) do
+    (source.min_duration_seconds && item.duration_seconds < source.min_duration_seconds) ||
+      (source.max_duration_seconds && item.duration_seconds > source.max_duration_seconds) || false
+  end
+
+  defp title_matches?(_item, %{title_filter_regex: nil}), do: true
+
+  defp title_matches?(item, source) do
+    case Regex.compile(source.title_filter_regex) do
+      {:ok, regex} -> Regex.match?(regex, item.title || "")
+      _ -> false
+    end
   end
 
   # Editing happens in SourceEditLive (/sources/:id/edit). This endpoint stays for anything that

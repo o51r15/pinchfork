@@ -160,7 +160,25 @@
     help="Couldn't be downloaded"
     class={if @counts.failed > 0, do: "text-bad", else: nil}
   />
-  <.count_card label="Skipped" value={@counts.skipped} help="Left out by your filters and settings" />
+  <div class="pf-card px-4 py-3" id="skipped-card">
+    <div class="text-xs font-medium text-muted">Skipped</div>
+    <div class="tabular mt-0.5 text-2xl font-semibold tracking-tight text-fg">
+      <.localized_number number={@counts.skipped} />
+    </div>
+    <div :if={@skip_reasons == []} class="mt-0.5 text-[11px] leading-4 text-muted">Left out by download rules</div>
+    <div :for={{owner, reasons} <- group_skip_reasons(@skip_reasons)} class="mt-0.5 text-[11px] leading-4 text-muted">
+      {Enum.map_join(reasons, ", ", fn {reason, count} -> skip_reason_text(reason, count) end)}
+      <span :if={owner == :profile}>
+        ·
+        <.link href={~p"/media_profiles/#{@source.media_profile_id}"} class="text-accent hover:underline">
+          {@source.media_profile.name} profile
+        </.link>
+      </span>
+      <span :if={owner == :source}>
+        · <.link href={~p"/sources/#{@source}/edit"} class="text-accent hover:underline">source settings</.link>
+      </span>
+    </div>
+  </div>
   <.count_card label="Turned off" value={@counts.prevented} help="Switched off by hand or a script" />
 </div>
 
