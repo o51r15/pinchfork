@@ -19,8 +19,12 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
 
   def render(%{years: []} = assigns) do
     ~H"""
-    <div class="text-center py-12 text-gray-400">
-      No media items found for this source yet. Index the source to populate it.
+    <div class="pf-card">
+      <.empty_state
+        icon="hero-film"
+        title="No videos yet"
+        description="Pinchfork hasn't found any videos for this source. Use Check for new videos to look now."
+      />
     </div>
     """
   end
@@ -28,165 +32,138 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
   def render(assigns) do
     ~H"""
     <div id="year-group-live" class="space-y-3">
-      <div class="flex justify-end mb-2">
+      <div class="mb-2 flex justify-end">
         <button
           phx-click="toggle_show_excluded"
-          class="flex items-center gap-1.5 text-xs text-gray-400 hover:text-white transition-colors"
+          class="inline-flex items-center gap-1.5 text-xs font-medium text-muted transition-colors hover:text-fg"
+          id="toggle-excluded"
         >
-          <.icon name={if @show_excluded, do: "hero-eye-slash", else: "hero-eye"} class="w-3.5 h-3.5" />
-          {if @show_excluded, do: "Hide excluded", else: "Show excluded"}
+          <.icon name={if @show_excluded, do: "hero-eye-slash-mini", else: "hero-eye-mini"} class="h-4 w-4" />
+          {if @show_excluded, do: "Hide skipped videos", else: "Show skipped videos"}
         </button>
       </div>
       <%= for year_data <- @years do %>
         <% expanded = Map.get(@expanded_years, year_data.year) %>
-        <div class="rounded-lg overflow-visible border border-strokedark">
-          <%!-- Year section header --%>
-          <div class="flex items-center gap-3 px-4 py-3 bg-meta-4 flex-wrap">
-            <%!-- Expand/collapse button — wraps left content --%>
+        <section class="pf-card overflow-visible" id={"year-#{year_data.year}"}>
+          <%!-- Year header --%>
+          <div class="flex flex-wrap items-center gap-3 px-4 py-3">
             <button
               phx-click="toggle_expand"
               phx-value-year={year_data.year}
-              class="flex items-center gap-3 flex-1 min-w-0 text-left"
+              class="flex min-w-0 flex-1 items-center gap-3 text-left"
+              aria-expanded={to_string(expanded != nil)}
             >
               <.icon
-                name={if expanded, do: "hero-chevron-down", else: "hero-chevron-right"}
-                class="w-4 h-4 text-gray-400 flex-shrink-0"
+                name={if expanded, do: "hero-chevron-down-mini", else: "hero-chevron-right-mini"}
+                class="h-4 w-4 shrink-0 text-muted"
               />
-              <span class="text-base font-bold text-white flex-shrink-0">{year_data.year}</span>
-              <span class="text-sm text-gray-400 flex-shrink-0">
-                <.localized_number number={year_data.total} /> episodes
+              <span class="shrink-0 text-base font-semibold text-fg">{year_data.year}</span>
+              <span class="shrink-0 text-sm text-muted">
+                <.localized_number number={year_data.total} /> {if year_data.total == 1, do: "episode", else: "episodes"}
               </span>
-              <%!-- Progress bar --%>
-              <div class="flex-1 h-1.5 bg-gray-700 rounded-full overflow-hidden min-w-12 hidden sm:block">
-                <div
-                  class="h-full bg-green-500 rounded-full transition-all duration-300"
-                  style={"width: #{progress_pct(year_data)}%"}
-                >
+              <div class="hidden h-1.5 min-w-12 flex-1 overflow-hidden rounded-full bg-surface-3 sm:block">
+                <div class="h-full rounded-full bg-ok transition-all duration-300" style={"width: #{progress_pct(year_data)}%"}>
                 </div>
               </div>
-              <%!-- Count badges --%>
-              <span class="text-xs text-green-400 flex-shrink-0">
-                <.localized_number number={year_data.downloaded} /> / <.localized_number number={year_data.total} />
+              <span class="tabular shrink-0 text-xs text-muted">
+                <span class="font-medium text-ok"><.localized_number number={year_data.downloaded} /></span>
+                of <.localized_number number={year_data.total} /> downloaded
               </span>
             </button>
 
-            <%!-- Page size selector — only visible when expanded --%>
-            <form :if={expanded} phx-change="change_page_size" class="flex items-center flex-shrink-0">
+            <%!-- How many of this year's episodes to list; only while it's open --%>
+            <form :if={expanded} phx-change="change_page_size" class="flex shrink-0 items-center gap-1.5">
               <input type="hidden" name="year" value={year_data.year} />
+              <label for={"page-size-#{year_data.year}"} class="text-xs text-muted">Show</label>
               <select
+                id={"page-size-#{year_data.year}"}
                 name="size"
-                class="bg-gray-800 text-white text-xs border-0 rounded px-2 py-1 focus:ring-0 focus:outline-none"
+                class="rounded-md border border-line bg-surface-2 py-1 pl-2 pr-7 text-xs text-fg focus:border-accent focus:ring-0"
               >
-                <option value="50" selected={expanded.page_size == 50}>50</option>
-                <option value="100" selected={expanded.page_size == 100}>100</option>
-                <option value="200" selected={expanded.page_size == 200}>200</option>
-                <option value="300" selected={expanded.page_size == 300}>300</option>
+                <option :for={size <- [50, 100, 200, 300]} value={size} selected={expanded.page_size == size}>
+                  {size}
+                </option>
                 <option value="all" selected={expanded.page_size == :all}>All</option>
               </select>
             </form>
 
-            <%!-- Year monitored toggle --%>
             <button
               phx-click="toggle_year"
               phx-value-year={year_data.year}
-              class={"px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0 transition-colors #{year_toggle_class(year_data.toggle_state)}"}
+              title={year_toggle_title(year_data.toggle_state)}
+              class={["shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors", year_toggle_class(year_data.toggle_state)]}
             >
               {year_toggle_label(year_data.toggle_state)}
             </button>
           </div>
 
-          <%!-- Episode rows — only rendered when expanded --%>
-          <%= if expanded do %>
-            <div class="overflow-x-auto">
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-strokedark">
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wide w-20">
-                      Date
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wide">
-                      Title
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wide hidden md:table-cell w-20">
-                      Duration
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wide hidden lg:table-cell w-20">
-                      Size
-                    </th>
-                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-400 uppercase tracking-wide w-28">
-                      Status
-                    </th>
-                    <th class="px-4 py-2 w-10"></th>
+          <%!-- Episodes --%>
+          <div :if={expanded} class="overflow-x-auto border-t border-line">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-line text-left text-xs font-medium uppercase tracking-wide text-muted">
+                  <th class="w-20 px-4 py-2 font-medium">Date</th>
+                  <th class="px-4 py-2 font-medium">Title</th>
+                  <th class="hidden w-20 px-4 py-2 font-medium md:table-cell">Length</th>
+                  <th class="hidden w-20 px-4 py-2 font-medium lg:table-cell">Size</th>
+                  <th class="w-32 px-4 py-2 font-medium">Status</th>
+                  <th class="w-10 px-4 py-2"><span class="sr-only">Download</span></th>
+                </tr>
+              </thead>
+              <tbody>
+                <%= for item <- expanded.items do %>
+                  <% status =
+                    item_status(
+                      item,
+                      expanded.active_job_ids,
+                      @source.download_cutoff_date,
+                      @source,
+                      @source.media_profile
+                    ) %>
+                  <tr class="border-b border-line/60 transition-colors last:border-0 hover:bg-surface-2">
+                    <td class="whitespace-nowrap px-4 py-2 text-xs text-muted">{format_episode_date(item.uploaded_at)}</td>
+                    <td class="max-w-xs px-4 py-2">
+                      <div class="flex min-w-0 items-center gap-1.5">
+                        <.tooltip :if={item.last_error} tooltip={item.last_error} position="bottom-right" tooltip_class="w-64">
+                          <.icon name="hero-exclamation-circle-mini" class="h-4 w-4 shrink-0 text-bad" />
+                        </.tooltip>
+                        <.link href={~p"/sources/#{@source.id}/media/#{item.id}"} class="block truncate text-fg hover:text-accent">
+                          {item.title}
+                        </.link>
+                      </div>
+                    </td>
+                    <td class="hidden whitespace-nowrap px-4 py-2 text-xs text-muted md:table-cell">
+                      {format_duration(item.duration_seconds)}
+                    </td>
+                    <td class="hidden whitespace-nowrap px-4 py-2 text-xs text-muted lg:table-cell">
+                      {format_size(item.media_size_bytes)}
+                    </td>
+                    <td class="px-4 py-2">
+                      <.status_chip kind={status_kind(status)}>{status_label(status)}</.status_chip>
+                    </td>
+                    <td class="px-4 py-2 text-right">
+                      <button
+                        phx-click="toggle_item"
+                        phx-value-id={item.id}
+                        class="text-muted transition-colors hover:text-fg"
+                        title={if item.prevent_download, do: "Turn downloading on for this video", else: "Turn downloading off for this video"}
+                      >
+                        <.icon name={if item.prevent_download, do: "hero-eye-slash-mini", else: "hero-eye-mini"} class="h-4 w-4" />
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  <%= for item <- expanded.items do %>
-                    <% status =
-                      item_status(
-                        item,
-                        expanded.active_job_ids,
-                        @source.download_cutoff_date,
-                        @source,
-                        @source.media_profile
-                      ) %>
-                    <tr class="border-b border-strokedark/50 hover:bg-meta-4/40 transition-colors">
-                      <td class="px-4 py-2 text-gray-400 whitespace-nowrap text-xs">
-                        {format_episode_date(item.uploaded_at)}
-                      </td>
-                      <td class="px-4 py-2 max-w-xs">
-                        <div class="flex items-center gap-1.5 min-w-0">
-                          <.tooltip
-                            :if={item.last_error}
-                            tooltip={item.last_error}
-                            position="bottom-right"
-                            tooltip_class="w-64"
-                          >
-                            <.icon name="hero-exclamation-circle-solid" class="text-red-500 w-4 h-4 flex-shrink-0" />
-                          </.tooltip>
-                          <.subtle_link
-                            href={~p"/sources/#{@source.id}/media/#{item.id}"}
-                            class="truncate block text-white hover:underline"
-                          >
-                            {item.title}
-                          </.subtle_link>
-                        </div>
-                      </td>
-                      <td class="px-4 py-2 text-gray-400 whitespace-nowrap text-xs hidden md:table-cell">
-                        {format_duration(item.duration_seconds)}
-                      </td>
-                      <td class="px-4 py-2 text-gray-400 whitespace-nowrap text-xs hidden lg:table-cell">
-                        {format_size(item.media_size_bytes)}
-                      </td>
-                      <td class="px-4 py-2">
-                        <span class={"inline-flex px-2 py-0.5 rounded-full text-xs font-semibold #{status_badge_class(status)}"}>
-                          {status_label(status)}
-                        </span>
-                      </td>
-                      <td class="px-4 py-2 text-right">
-                        <button
-                          phx-click="toggle_item"
-                          phx-value-id={item.id}
-                          class="text-gray-500 hover:text-white transition-colors"
-                          title={if item.prevent_download, do: "Enable download", else: "Disable download"}
-                        >
-                          <.icon name={if item.prevent_download, do: "hero-eye-slash", else: "hero-eye"} class="w-4 h-4" />
-                        </button>
-                      </td>
-                    </tr>
-                  <% end %>
-                </tbody>
-              </table>
+                <% end %>
+              </tbody>
+            </table>
 
-              <%!-- Truncation notice --%>
-              <p
-                :if={expanded.page_size != :all && length(expanded.items) == expanded.page_size}
-                class="text-xs text-gray-500 text-center py-3"
-              >
-                Showing first {expanded.page_size} items. Change the selector above to load more.
-              </p>
-            </div>
-          <% end %>
-        </div>
+            <p
+              :if={expanded.page_size != :all && length(expanded.items) == expanded.page_size}
+              class="border-t border-line py-3 text-center text-xs text-muted"
+            >
+              Showing the newest {expanded.page_size} of {year_data.total}. Choose more with Show above.
+            </p>
+          </div>
+        </section>
       <% end %>
     </div>
     """
@@ -634,36 +611,35 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
 
   defp status_label(:downloaded), do: "Downloaded"
   defp status_label(:downloading), do: "Downloading"
-  defp status_label(:pending), do: "Pending"
+  defp status_label(:pending), do: "Waiting"
   defp status_label(:retrying), do: "Retrying"
   defp status_label(:failed), do: "Failed"
-  defp status_label(:prevented), do: "Prevented"
+  defp status_label(:prevented), do: "Turned off"
   defp status_label(:skipped_short), do: "Skipped · Short"
   defp status_label(:skipped_live), do: "Skipped · Live"
   defp status_label(:skipped_members), do: "Skipped · Members"
-  defp status_label(:skipped_manual), do: "Skipped · Manual"
+  defp status_label(:skipped_manual), do: "Turned off"
   defp status_label(:skipped_cutoff), do: "Skipped · Cutoff"
 
-  defp status_badge_class(:downloaded), do: "bg-green-500/20 text-green-400"
-  defp status_badge_class(:downloading), do: "bg-teal-500/20 text-teal-400"
-  defp status_badge_class(:pending), do: "bg-blue-500/20 text-blue-400"
-  defp status_badge_class(:retrying), do: "bg-orange-500/20 text-orange-400"
-  defp status_badge_class(:failed), do: "bg-red-500/20 text-red-400"
-  defp status_badge_class(:prevented), do: "bg-yellow-500/20 text-yellow-500"
-  defp status_badge_class(:skipped_short), do: "bg-gray-500/15 text-gray-500"
-  defp status_badge_class(:skipped_live), do: "bg-gray-500/15 text-gray-500"
-  defp status_badge_class(:skipped_members), do: "bg-gray-500/15 text-gray-500"
-  defp status_badge_class(:skipped_manual), do: "bg-gray-500/15 text-gray-500"
-  defp status_badge_class(:skipped_cutoff), do: "bg-gray-500/15 text-gray-500"
+  defp status_kind(:downloaded), do: :ok
+  defp status_kind(:downloading), do: :accent
+  defp status_kind(:pending), do: :info
+  defp status_kind(:retrying), do: :warn
+  defp status_kind(:failed), do: :bad
+  defp status_kind(:prevented), do: :warn
+  defp status_kind(_skipped), do: :neutral
 
-  defp year_toggle_class(:on), do: "bg-green-500/20 text-green-400 hover:bg-green-500/30"
-  defp year_toggle_class(:mixed), do: "bg-amber-500/20 text-amber-400 hover:bg-amber-500/30"
-  defp year_toggle_class(:off), do: "bg-gray-500/20 text-gray-400 hover:bg-gray-500/30"
+  defp year_toggle_class(:on), do: "bg-ok/15 text-ok hover:bg-ok/25"
+  defp year_toggle_class(:mixed), do: "bg-warn/15 text-warn hover:bg-warn/25"
+  defp year_toggle_class(:off), do: "bg-surface-2 text-muted hover:bg-surface-3"
 
   defp year_toggle_label(:on), do: "Monitored"
   defp year_toggle_label(:mixed), do: "Mixed"
   defp year_toggle_label(:off), do: "Unmonitored"
 
+  defp year_toggle_title(:on), do: "Downloading this year's videos. Click to stop."
+  defp year_toggle_title(:mixed), do: "Some of this year's videos are turned off. Click to turn the whole year off."
+  defp year_toggle_title(:off), do: "Not downloading this year's videos. Click to start."
   defp compute_toggle_state(%{prevented: 0}), do: :on
 
   defp compute_toggle_state(%{prevented: prevented, total: total})
