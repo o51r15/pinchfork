@@ -38,7 +38,7 @@ services:
 
   pinchfork: # the app
     container_name: pinchfork
-    image: ghcr.io/o51r15/pinchfork:latest # or pin a version, e.g. :v0.3.1
+    image: ghcr.io/o51r15/pinchfork:latest # or pin a version, e.g. :v0.5.0
     restart: unless-stopped
     depends_on:
       pinchfork-db:
