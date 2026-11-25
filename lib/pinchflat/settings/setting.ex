@@ -23,7 +23,9 @@ defmodule Pinchflat.Settings.Setting do
     :discovery_g2_enabled,
     :discovery_g3_enabled,
     :discovery_g4_enabled,
-    :discovery_disabled_clusters
+    :discovery_disabled_clusters,
+    :default_client_enabled,
+    :default_client
   ]
 
   @required_fields [
@@ -57,6 +59,10 @@ defmodule Pinchflat.Settings.Setting do
     field :discovery_g3_enabled, :boolean, default: true
     field :discovery_g4_enabled, :boolean, default: true
     field :discovery_disabled_clusters, {:array, :string}, default: []
+
+    # Video client for sources that don't choose their own. See Sources.effective_client/2.
+    field :default_client_enabled, :boolean, default: false
+    field :default_client, :string, default: "web_creator,tv"
   end
 
   @doc false
@@ -69,5 +75,21 @@ defmodule Pinchflat.Settings.Setting do
     |> validate_format(:download_throughput_limit, ~r/\A\d+(\.\d+)?[KMG]?\z/i,
       message: "use a number with K, M or G, like 500K or 4.2M"
     )
+    |> validate_required([:default_client])
+    |> validate_default_client()
+  end
+
+  # Same rule as a source's own client: every leg must be a known client name
+  defp validate_default_client(changeset) do
+    validate_change(changeset, :default_client, fn :default_client, chain ->
+      unknown =
+        chain |> String.split(",", trim: true) |> Enum.reject(&(&1 in Pinchflat.Sources.Source.all_known_clients()))
+
+      cond do
+        String.split(chain, ",", trim: true) == [] -> [default_client: "choose a client"]
+        unknown != [] -> [default_client: "contains unknown client(s): #{Enum.join(unknown, ", ")}"]
+        true -> []
+      end
+    end)
   end
 end

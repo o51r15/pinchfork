@@ -50,6 +50,43 @@ defmodule Pinchflat.Sources do
   end
 
   @doc """
+  Returns the yt-dlp video client a source downloads with, and where that choice came from.
+
+  - A source's own client always wins (`:source`).
+  - Otherwise the default from Settings › YouTube Access, when it's turned on (`:default`).
+    A default that can't carry cookies is NOT applied to a source that uses cookies (members-only
+    videos or a cookie behaviour other than Disabled); that source keeps yt-dlp's automatic
+    choice (`:automatic_cookies`) so its cookies keep working.
+  - Otherwise yt-dlp's automatic choice (`:automatic`).
+
+  Pass `setting: %Setting{}` to avoid reading the settings row again.
+
+  Returns {String.t() | nil, :source | :default | :automatic | :automatic_cookies}
+  """
+  def effective_client(%Source{} = source, opts \\ []) do
+    setting = Keyword.get_lazy(opts, :setting, &Pinchflat.Settings.record/0)
+
+    cond do
+      is_binary(source.client_override) ->
+        {source.client_override, :source}
+
+      not setting.default_client_enabled ->
+        {nil, :automatic}
+
+      Source.client_override_supports_cookies?(setting.default_client) or not uses_any_cookies?(source) ->
+        {setting.default_client, :default}
+
+      true ->
+        {nil, :automatic_cookies}
+    end
+  end
+
+  # Same test as Source's client/cookie check at save time
+  defp uses_any_cookies?(source) do
+    source.download_members_videos == true or source.cookie_behaviour != :disabled
+  end
+
+  @doc """
   Returns the list of sources. Returns [%Source{}, ...]
   """
   def list_sources do

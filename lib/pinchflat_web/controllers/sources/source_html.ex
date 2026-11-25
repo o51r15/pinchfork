@@ -35,6 +35,77 @@ defmodule PinchflatWeb.Sources.SourceHTML do
     ]
   end
 
+  @doc """
+  Choices for a yt-dlp video client, used by a source's own setting and by the default in
+  Settings › YouTube Access. `first` is the "no client of its own" choice, or nil for none.
+  A stored value that isn't listed is kept as a "(custom)" choice so saving doesn't lose it.
+  """
+  def video_client_options(current, first \\ {"Automatic (recommended)", ""}) do
+    known = [
+      {"Compatible with cookies (web_creator, tv)", "web_creator,tv"},
+      {"No cookies, no token (android_vr)", "android_vr"},
+      {"Other clients",
+       [
+         {"tv: works with cookies", "tv"},
+         {"web_safari: works with cookies, needs the token server", "web_safari"},
+         {"mweb: works with cookies, needs the token server", "mweb"},
+         {"web: works with cookies, needs the token server", "web"},
+         {"android: no cookies, needs the token server", "android"},
+         {"ios: no cookies", "ios"},
+         {"tv_simply: no cookies, needs the token server", "tv_simply"}
+       ]}
+    ]
+
+    values = ["", "web_creator,tv", "android_vr", "tv", "web_safari", "mweb", "web", "android", "ios", "tv_simply"]
+    known = if first, do: [first | known], else: known
+
+    if current in [nil | values], do: known, else: known ++ [{"#{current} (custom)", current}]
+  end
+
+  @doc """
+  Short text for a client chain, e.g. "web_creator, tv".
+  """
+  def video_client_text(chain) when is_binary(chain), do: chain |> String.split(",", trim: true) |> Enum.join(", ")
+  def video_client_text(_), do: "Automatic"
+
+  @doc """
+  The video client a source downloads with, from Sources.effective_client/2. Nothing is shown
+  for yt-dlp's automatic choice unless a default was set aside because of cookies.
+  """
+  attr :client, :any, required: true
+
+  def client_chip(%{client: {_, :automatic}} = assigns), do: ~H""
+
+  def client_chip(%{client: {_, :automatic_cookies}} = assigns) do
+    ~H"""
+    <span
+      class="pf-chip bg-surface-2 text-muted"
+      id="source-client"
+      title="The default client can't use cookies and this source uses them, so it keeps the automatic choice."
+    >
+      Client: automatic
+    </span>
+    """
+  end
+
+  def client_chip(%{client: {chain, origin}} = assigns) do
+    assigns = assign(assigns, chain: chain, origin: origin)
+
+    ~H"""
+    <span
+      class="pf-chip bg-surface-2 text-muted"
+      id="source-client"
+      title={
+        if @origin == :default,
+          do: "The default from Settings › YouTube Access.",
+          else: "Chosen for this source in Edit › YouTube access."
+      }
+    >
+      Client: {video_client_text(@chain)}{if @origin == :default, do: " (default)"}
+    </span>
+    """
+  end
+
   def cutoff_date_presets do
     [
       {"7 days", compute_date_offset(7)},

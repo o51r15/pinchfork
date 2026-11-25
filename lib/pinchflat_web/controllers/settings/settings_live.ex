@@ -17,6 +17,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
   alias Pinchflat.Sources.Source
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.YtDlp.PoTokenServer
+  alias PinchflatWeb.Sources.SourceHTML
 
   # page => {title, fields that page may save}
   @pages %{
@@ -29,7 +30,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
          :video_codec_preference,
          :audio_codec_preference
        ]},
-    "youtube" => {"YouTube Access", [:youtube_api_key]},
+    "youtube" => {"YouTube Access", [:youtube_api_key, :default_client_enabled, :default_client]},
     "notifications" => {"Notifications", [:apprise_server]},
     "feeds" => {"Feeds & Sharing", []},
     "discovery" => {"Discovery", [:discovery_enabled, :discovery_g1_enabled, :discovery_g2_enabled]},
@@ -110,6 +111,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
     |> assign(
       fast_index_count: count_sources(:fast_index),
       cookie_source_count: count_sources(:cookies),
+      client_counts: client_counts(),
       cookies: cookie_status()
     )
     |> check_po_server()
@@ -579,6 +581,58 @@ defmodule PinchflatWeb.Settings.SettingsLive do
             </span>
           </div>
         </.settings_row>
+      </.card>
+
+      <.card
+        title="Video client"
+        description="Which YouTube player yt-dlp pretends to be when it downloads. Leave it off unless downloads fail; yt-dlp's automatic choice works for most people."
+        class="mt-6"
+        id="video-client-card"
+      >
+        <:actions>
+          <.docs_link href="https://github.com/o51r15/pinchfork/wiki/SABR-Bypass-and-PO-Tokens" />
+        </:actions>
+        <.settings_row
+          label="Use a default client"
+          for="setting_default_client_enabled"
+          help="Applies to every source that hasn't chosen its own client. Default: off."
+        >
+          <.switch field={@form[:default_client_enabled]} />
+        </.settings_row>
+        <.settings_row
+          :if={default_client_on?(@form)}
+          label="Default client"
+          for="setting_default_client"
+          help={default_client_help(@client_counts)}
+        >
+          <div class="relative max-w-md">
+            <select id="setting_default_client" name={@form[:default_client].name} class="pf-input appearance-none pr-9">
+              {Phoenix.HTML.Form.options_for_select(
+                SourceHTML.video_client_options(@form[:default_client].value, nil),
+                @form[:default_client].value
+              )}
+            </select>
+            <.icon
+              name="hero-chevron-up-down-mini"
+              class="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted"
+            />
+          </div>
+          <.field_errors field={@form[:default_client]} />
+          <p
+            :if={not cookie_safe_client?(@form[:default_client].value) and @client_counts.with_cookies > 0}
+            class="mt-2 text-[13px] leading-5 text-warn"
+            id="default-client-cookie-note"
+          >
+            This client can't use cookies. Sources that use cookies ({@client_counts.with_cookies}) keep the automatic choice, so their cookies still work.
+          </p>
+        </.settings_row>
+        <%!-- Keep the saved client when the switch is off, so turning it back on remembers it --%>
+        <input
+          :if={!default_client_on?(@form)}
+          type="hidden"
+          name={@form[:default_client].name}
+          value={@form[:default_client].value}
+        />
       </.card>
     </.form>
 
@@ -1093,6 +1147,37 @@ defmodule PinchflatWeb.Settings.SettingsLive do
       :count
     )
   end
+
+  # Sources without a client of their own (they follow the default), and how many of those use
+  # cookies (a default that can't carry cookies isn't applied to them).
+  defp client_counts do
+    base = from(s in Source, where: is_nil(s.client_override) and is_nil(s.marked_for_deletion_at))
+
+    %{
+      follows_default: Repo.aggregate(base, :count),
+      with_cookies:
+        Repo.aggregate(
+          from(s in base, where: s.download_members_videos or s.cookie_behaviour != ^:disabled),
+          :count
+        ),
+      own_client:
+        Repo.aggregate(
+          from(s in Source, where: not is_nil(s.client_override) and is_nil(s.marked_for_deletion_at)),
+          :count
+        )
+    }
+  end
+
+  defp default_client_on?(form), do: Phoenix.HTML.Form.normalize_value("checkbox", form[:default_client_enabled].value)
+
+  defp cookie_safe_client?(chain), do: Source.client_override_supports_cookies?(chain)
+
+  defp default_client_help(%{follows_default: n, own_client: 0}),
+    do: "Used by #{n} #{pluralize(n, "source")}. A source can still choose its own in Edit › YouTube access."
+
+  defp default_client_help(%{follows_default: n, own_client: own}),
+    do:
+      "Used by #{n} #{pluralize(n, "source")}. #{own} #{pluralize(own, "source")} chose their own client, which always wins."
 
   defp cookie_status do
     path = cookies_path()

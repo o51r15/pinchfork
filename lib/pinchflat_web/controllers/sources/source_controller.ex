@@ -204,6 +204,7 @@ defmodule PinchflatWeb.Sources.SourceController do
       source: source,
       pending_tasks: pending_tasks,
       counts: counts,
+      client: Sources.effective_client(source),
       skip_reasons: if(skipped > 0, do: skip_reasons(source), else: [])
     )
   end

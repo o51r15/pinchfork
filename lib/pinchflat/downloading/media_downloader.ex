@@ -164,7 +164,9 @@ defmodule Pinchflat.Downloading.MediaDownloader do
     # return false and suppress cookies. Cookie-compatible overrides (web_creator, tv, etc.)
     # return true and allow cookies — this is the KEY fix from the old `!= nil` logic which
     # incorrectly disabled cookies for ALL overrides, including cookie-capable ones.
-    client_bypasses_cookies = not Source.client_override_supports_cookies?(item_with_preloads.source.client_override)
+    # The client is the source's own, or the default from Settings (Sources.effective_client/2).
+    {client, _origin} = Sources.effective_client(item_with_preloads.source)
+    client_bypasses_cookies = not Source.client_override_supports_cookies?(client)
     should_use_cookies = !client_bypasses_cookies && (force_use_cookies || source_uses_cookies)
 
     runner_opts = [output_filepath: output_filepath, use_cookies: should_use_cookies]

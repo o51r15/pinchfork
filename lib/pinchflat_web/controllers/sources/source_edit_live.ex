@@ -29,6 +29,7 @@ defmodule PinchflatWeb.Sources.SourceEditLive do
        current_path: "/sources",
        profiles: Profiles.list_media_profiles() |> Enum.sort_by(& &1.id),
        has_api_key: Settings.get!(:youtube_api_key) not in [nil, ""],
+       default_client: default_client(),
        show_advanced: uses_advanced?(source)
      )
      |> reset(source), layout: {PinchflatWeb.Layouts, :app}}
@@ -436,12 +437,11 @@ defmodule PinchflatWeb.Sources.SourceEditLive do
           >
             <.select_control field={@form[:cookie_behaviour]} options={cookie_options()} />
           </.settings_row>
-          <.settings_row
-            label="Video client"
-            for="source_client_override"
-            help="Change it only when downloads fail. Automatic works for most sources."
-          >
-            <.select_control field={@form[:client_override]} options={client_options(@form[:client_override].value)} />
+          <.settings_row label="Video client" for="source_client_override" help={client_help(@default_client)}>
+            <.select_control
+              field={@form[:client_override]}
+              options={SourceHTML.video_client_options(@form[:client_override].value, client_first_option(@default_client))}
+            />
             <.field_errors field={@form[:client_override]} />
           </.settings_row>
         </.card>
@@ -587,27 +587,20 @@ defmodule PinchflatWeb.Sources.SourceEditLive do
     ]
   end
 
-  defp client_options(current) do
-    known = [
-      {"Automatic (recommended)", ""},
-      {"Compatible with cookies (web_creator, tv)", "web_creator,tv"},
-      {"No cookies, no token (android_vr)", "android_vr"},
-      {"Other clients",
-       [
-         {"tv: works with cookies", "tv"},
-         {"web_safari: works with cookies, needs the token server", "web_safari"},
-         {"mweb: works with cookies, needs the token server", "mweb"},
-         {"web: works with cookies, needs the token server", "web"},
-         {"android: no cookies, needs the token server", "android"},
-         {"ios: no cookies", "ios"},
-         {"tv_simply: no cookies, needs the token server", "tv_simply"}
-       ]}
-    ]
-
-    values = ["", "web_creator,tv", "android_vr", "tv", "web_safari", "mweb", "web", "android", "ios", "tv_simply"]
-
-    if current in [nil | values], do: known, else: known ++ [{"#{current} (custom)", current}]
+  # The default client from Settings › YouTube Access, or nil when it's turned off
+  defp default_client do
+    setting = Settings.record()
+    if setting.default_client_enabled, do: setting.default_client
   end
+
+  defp client_first_option(nil), do: {"Automatic (recommended)", ""}
+  defp client_first_option(chain), do: {"Use the default (#{SourceHTML.video_client_text(chain)})", ""}
+
+  defp client_help(nil), do: "Change it only when downloads fail. Automatic works for most sources."
+
+  defp client_help(_chain),
+    do:
+      "Settings › YouTube Access sets a default for every source. Choose a client here only if this source needs a different one."
 
   defp format_duration(nil), do: ""
 

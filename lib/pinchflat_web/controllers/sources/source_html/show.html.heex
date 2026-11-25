@@ -29,6 +29,7 @@
         <.status_chip :if={@source.download_media} kind={:ok}>Monitored</.status_chip>
         <.status_chip :if={!@source.download_media} kind={:warn}>Unmonitored</.status_chip>
         <.status_chip :if={@source.fast_index} kind={:accent}>Fast Indexing</.status_chip>
+        <.client_chip client={@client} />
         <span class="ml-1 text-xs text-muted">
           {if @source.last_indexed_at,
             do: "Last full scan #{time_ago(@source.last_indexed_at)}",

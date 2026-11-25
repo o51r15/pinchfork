@@ -249,7 +249,19 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
   # The per-leg whitelist guard is intentional: only legs in @all_known_clients ever get
   # interpolated into the yt-dlp arg, so a stray/legacy stored value falls through to no
   # override rather than injecting arbitrary text into the command line.
-  defp client_override_options(%{client_override: chain}) when is_binary(chain) do
+  #
+  # The chain is the source's own client, or the default from Settings when the source has none
+  # (Sources.effective_client/2).
+  defp client_override_options(%Source{} = source) do
+    case Sources.effective_client(source) do
+      {chain, _origin} when is_binary(chain) -> client_chain_options(chain)
+      _ -> []
+    end
+  end
+
+  defp client_override_options(_source), do: []
+
+  defp client_chain_options(chain) do
     legs = String.split(chain, ",", trim: true)
 
     if legs != [] and Enum.all?(legs, &(&1 in Source.all_known_clients())) do
@@ -259,8 +271,6 @@ defmodule Pinchflat.Downloading.DownloadOptionBuilder do
       []
     end
   end
-
-  defp client_override_options(_source), do: []
 
   # Passes the bgutil POT provider base_url to yt-dlp so it knows where to fetch
   # GVS PO Tokens. Uses a separate extractor namespace (youtubepot-bgutilhttp:) from
