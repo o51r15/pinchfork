@@ -1,26 +1,62 @@
-<div class="mb-6 flex gap-3 flex-row items-center justify-between">
-  <h2 class="text-title-md2 font-bold text-black dark:text-white truncate">
-    Results for "{@search_term}"
-  </h2>
-</div>
+<div class="mx-auto max-w-4xl">
+  <.page_header title="Search" description={summary(@search_term, length(@search_results), @limit)} />
 
-<div class="rounded-sm border border-stroke bg-white px-5 py-5 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5">
-  <div class="max-w-full">
-    <div class="flex flex-col gap-10 dark:text-white">
-      <%= if match?([_|_], @search_results) do %>
-        <.table rows={@search_results} table_class="text-black dark:text-white">
-          <:col :let={result} label="Title" class="truncate max-w-xs">
-            <.subtle_link href={~p"/sources/#{result.source_id}/media/#{result.id}"}>
-              {result.title}
-            </.subtle_link>
-          </:col>
-          <:col :let={result} label="Excerpt">
-            <.highlight_search_terms text={result.matching_search_term} />
-          </:col>
-        </.table>
-      <% else %>
-        <p class="font-bold text-lg text-center text-black dark:text-white">No results found</p>
-      <% end %>
+  <section :if={@sources != []} class="mb-6" id="search-sources">
+    <h2 class="mb-2 text-sm font-semibold text-fg">Sources</h2>
+    <div class="flex flex-wrap gap-2">
+      <.link
+        :for={source <- @sources}
+        href={~p"/sources/#{source}"}
+        class="inline-flex items-center gap-2 rounded-lg border border-line bg-surface px-3 py-1.5 text-sm font-medium text-fg hover:bg-surface-2"
+      >
+        <.icon name="hero-tv-mini" class="h-4 w-4 text-muted" /> {source.custom_name}
+      </.link>
     </div>
+  </section>
+
+  <section :if={@search_results != []} id="search-results">
+    <h2 :if={@sources != []} class="mb-2 text-sm font-semibold text-fg">Videos</h2>
+    <ul class="pf-card divide-y divide-line overflow-hidden">
+      <li :for={result <- @search_results}>
+        <.link
+          href={~p"/sources/#{result.source_id}/media/#{result.id}"}
+          class="flex gap-3 px-5 py-3.5 hover:bg-surface-2"
+        >
+          <.icon
+            name={if result.media_filepath, do: "hero-check-circle", else: "hero-film"}
+            class={["mt-0.5 h-5 w-5 shrink-0", if(result.media_filepath, do: "text-ok", else: "text-muted")]}
+          />
+          <div class="min-w-0 flex-1">
+            <p class="font-medium text-fg">
+              <.highlight_search_terms text={result.matching_title || result.title} />
+            </p>
+            <p :if={excerpt(result)} class="mt-1 line-clamp-2 text-sm text-muted">
+              <.highlight_search_terms text={excerpt(result)} />
+            </p>
+            <p class="mt-1.5 text-xs text-muted">
+              {result.source.custom_name}
+              <span :if={result.uploaded_at}>· {Calendar.strftime(result.uploaded_at, "%b %-d, %Y")}</span>
+              <span>· {if result.media_filepath, do: "Downloaded", else: "Not downloaded"}</span>
+            </p>
+          </div>
+        </.link>
+      </li>
+    </ul>
+  </section>
+
+  <div :if={@search_term != "" and @search_results == [] and @sources == []} class="pf-card" id="search-empty">
+    <.empty_state
+      icon="hero-magnifying-glass"
+      title={"Nothing matches “#{@search_term}”"}
+      description="Search looks at the titles and descriptions of every video your sources have found, downloaded or not. Try fewer or shorter words: each word also matches longer ones that start with it."
+    />
+  </div>
+
+  <div :if={@search_term == ""} class="pf-card" id="search-blank">
+    <.empty_state
+      icon="hero-magnifying-glass"
+      title="Search your library"
+      description="Type in the search box at the top to find any video your sources have found, by words in its title or description. Press / on any page to jump there."
+    />
   </div>
 </div>

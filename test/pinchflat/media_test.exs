@@ -548,6 +548,15 @@ defmodule Pinchflat.MediaTest do
       assert String.contains?(res.matching_search_term, "The [PF_HIGHLIGHT]quick[/PF_HIGHLIGHT] brown fox")
     end
 
+    test "marks the match in the whole title and in a description excerpt" do
+      assert [res] = Media.search("lazy")
+      assert res.matching_title == "The quick brown fox"
+      assert res.matching_excerpt =~ "[PF_HIGHLIGHT]lazy[/PF_HIGHLIGHT]"
+
+      assert [res] = Media.search("brown")
+      assert res.matching_title == "The quick [PF_HIGHLIGHT]brown[/PF_HIGHLIGHT] fox"
+    end
+
     test "doesn't set matching_search_term to nil if one of the attributes we search on is null" do
       media_item_fixture(%{title: "foobar baz", description: nil})
 

@@ -244,6 +244,21 @@ defmodule Pinchflat.Media.MediaQuery do
                     ^tsquery,
                     mi.description,
                     ^tsquery
+                  ),
+                matching_title:
+                  fragment(
+                    "ts_headline('simple', ?, to_tsquery('simple', ?), 'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], HighlightAll=true')",
+                    mi.title,
+                    ^tsquery
+                  ),
+                matching_excerpt:
+                  fragment(
+                    """
+                    coalesce(ts_headline('simple', ?, to_tsquery('simple', ?),
+                      'StartSel=[PF_HIGHLIGHT], StopSel=[/PF_HIGHLIGHT], MaxWords=30, MinWords=12, MaxFragments=2, FragmentDelimiter=" … "'), '')
+                    """,
+                    mi.description,
+                    ^tsquery
                   )
               },
               order_by: [desc: fragment("ts_rank(search_vector, to_tsquery('simple', ?))", ^tsquery)]

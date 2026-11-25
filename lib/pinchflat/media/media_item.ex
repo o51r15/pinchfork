@@ -100,6 +100,9 @@ defmodule Pinchflat.Media.MediaItem do
     field :download_prevented_reason, :string
 
     field :matching_search_term, :string, virtual: true
+    # Set by search: the whole title, and a snippet of the description, with matches marked
+    field :matching_title, :string, virtual: true
+    field :matching_excerpt, :string, virtual: true
 
     belongs_to :source, Source
 

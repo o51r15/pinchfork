@@ -190,6 +190,15 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
       snapshot("24-discovery", conn |> get(~p"/discovery") |> html_response(200))
 
+      media_item_fixture(%{
+        source_id: source.id,
+        title: "Roanoke: the colony that vanished",
+        description: "In 1587 over a hundred settlers landed on Roanoke Island. Three years later the colony was gone."
+      })
+
+      snapshot("25-search", conn |> get(~p"/search?q=roanoke") |> html_response(200))
+      snapshot("25b-search-empty", conn |> get(~p"/search?q=zeppelin") |> html_response(200))
+
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end
