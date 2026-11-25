@@ -92,7 +92,8 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("12-source-new", conn |> get(~p"/sources/new") |> html_response(200))
 
       stub(YtDlpRunnerMock, :run, fn _, :get_source_details, _, _, _ ->
-        {:ok, ~s({"channel": "Pavlos Kapralos", "channel_id": "UCzgAonk4-uVhXXjKSF-Nz1A", "playlist_id": "UCzgAonk4-uVhXXjKSF-Nz1A"})}
+        {:ok,
+         ~s({"channel": "Pavlos Kapralos", "channel_id": "UCzgAonk4-uVhXXjKSF-Nz1A", "playlist_id": "UCzgAonk4-uVhXXjKSF-Nz1A"})}
       end)
 
       snapshot_live("12b-source-new-found", conn, ~p"/sources/new", fn view ->
@@ -102,6 +103,16 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
         render_async(view)
         view |> element("button", "Last year") |> render_click()
+      end)
+
+      snapshot("12c-source-edit", conn |> get(~p"/sources/#{source}/edit") |> html_response(200))
+
+      snapshot_live("12d-source-edit-advanced", conn, ~p"/sources/#{source}/edit", fn view ->
+        view |> element("#toggle-advanced") |> render_click()
+
+        view
+        |> form("#source-form", source: %{title_filter_regex: "(?i)chair", min_duration: "1:30"})
+        |> render_change()
       end)
 
       for page <- ~w(downloads notifications feeds discovery general) do

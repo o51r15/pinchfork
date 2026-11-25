@@ -283,12 +283,21 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
           description="A profile decides quality and file naming. Create one, then come back to add a source."
         >
           <:actions>
-            <.link href={~p"/media_profiles/new"}><.button color="bg-primary">New profile</.button></.link>
+            <.link href={~p"/media_profiles/new"}>
+              <.button color="bg-primary">New profile</.button>
+            </.link>
           </:actions>
         </.empty_state>
       </.card>
 
-      <.form :if={@profiles != []} for={@form} id="source-form" phx-change="validate" phx-submit="save" class="flex flex-col gap-6">
+      <.form
+        :if={@profiles != []}
+        for={@form}
+        id="source-form"
+        phx-change="validate"
+        phx-submit="save"
+        class="flex flex-col gap-6"
+      >
         <.card title="Channel or playlist">
           <div class="border-t border-line px-5 py-4">
             <label for="source_url" class="mb-1.5 block text-sm font-medium text-fg">Link</label>
@@ -382,7 +391,9 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
                 <%= if @has_api_key do %>
                   Uses your YouTube API key.
                 <% else %>
-                  Uses YouTube's RSS feeds; an API key in <.link href={~p"/settings/youtube"} class="text-accent hover:underline">YouTube Access</.link> makes it more reliable.
+                  Uses YouTube's RSS feeds; an API key in
+                  <.link href={~p"/settings/youtube"} class="text-accent hover:underline">YouTube Access</.link>
+                  makes it more reliable.
                 <% end %>
               </p>
             </div>
@@ -398,7 +409,7 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
                 class="peer sr-only"
               />
               <span class="h-6 w-11 rounded-full bg-surface-3 transition-colors peer-checked:bg-accent"></span>
-              <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5">
+              <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[#ffffff] shadow transition-transform peer-checked:translate-x-5">
               </span>
             </label>
           </div>
@@ -431,7 +442,10 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
   defp lookup_preview(assigns) do
     ~H"""
     <div id="lookup-preview" class="mt-3" aria-live="polite">
-      <div :if={@lookup == :loading} class="flex items-center gap-2.5 rounded-lg border border-line px-3.5 py-3 text-sm text-muted">
+      <div
+        :if={@lookup == :loading}
+        class="flex items-center gap-2.5 rounded-lg border border-line px-3.5 py-3 text-sm text-muted"
+      >
         <.icon name="hero-arrow-path" class="h-4 w-4 animate-spin" /> Looking it up on YouTube…
       </div>
       <div
@@ -441,10 +455,7 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
         <.icon name="hero-exclamation-triangle" class="h-4 w-4 shrink-0 text-warn" />
         That's a link to a single video. Paste the link of its channel or playlist instead.
       </div>
-      <div
-        :if={match?({:error, _}, @lookup)}
-        class="rounded-lg border border-bad/40 bg-bad/10 px-3.5 py-3 text-sm text-fg"
-      >
+      <div :if={match?({:error, _}, @lookup)} class="rounded-lg border border-bad/40 bg-bad/10 px-3.5 py-3 text-sm text-fg">
         <div class="flex items-center gap-2.5">
           <.icon name="hero-x-circle" class="h-4 w-4 shrink-0 text-bad" /> Couldn't find a channel or playlist at that link.
         </div>

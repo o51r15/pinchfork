@@ -70,6 +70,7 @@ defmodule PinchflatWeb.Router do
       live "/discovery", Discovery.DiscoveryLive, :index
       live "/sources", Sources.SourceIndexLive, :index
       live "/sources/new", Sources.SourceNewLive, :new
+      live "/sources/:id/edit", Sources.SourceEditLive, :edit
       live "/settings/:page", Settings.SettingsLive, :show
     end
 
@@ -93,7 +94,7 @@ defmodule PinchflatWeb.Router do
     get "/sources/:id/poster", Sources.SourceController, :poster
     get "/sources/:id/fanart", Sources.SourceController, :fanart
 
-    resources "/sources", Sources.SourceController, except: [:index, :new] do
+    resources "/sources", Sources.SourceController, except: [:index, :new, :edit] do
       post "/force_download_pending", Sources.SourceController, :force_download_pending
       post "/force_redownload", Sources.SourceController, :force_redownload
       post "/force_index", Sources.SourceController, :force_index

@@ -202,13 +202,8 @@ defmodule PinchflatWeb.Sources.SourceController do
     render(conn, :show, source: source, pending_tasks: pending_tasks, counts: counts)
   end
 
-  def edit(conn, %{"id" => id}) do
-    source = Sources.get_source!(id)
-    changeset = Sources.change_source(source)
-
-    render(conn, :edit, source: source, changeset: changeset, media_profiles: media_profiles())
-  end
-
+  # Editing happens in SourceEditLive (/sources/:id/edit). This endpoint stays for anything that
+  # still submits the old form.
   def update(conn, %{"id" => id, "source" => source_params}) do
     source = Sources.get_source!(id)
 

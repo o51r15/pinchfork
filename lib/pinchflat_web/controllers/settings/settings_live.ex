@@ -1048,7 +1048,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
       />
       <span class="h-6 w-11 rounded-full bg-surface-3 transition-colors peer-checked:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-accent/50">
       </span>
-      <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform peer-checked:translate-x-5">
+      <span class="absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-[#ffffff] shadow transition-transform peer-checked:translate-x-5">
       </span>
     </label>
     """

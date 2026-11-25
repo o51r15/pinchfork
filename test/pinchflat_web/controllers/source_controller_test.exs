@@ -66,15 +66,6 @@ defmodule PinchflatWeb.SourceControllerTest do
     end
   end
 
-  describe "edit source" do
-    setup [:create_source]
-
-    test "renders form for editing chosen source", %{conn: conn, source: source} do
-      conn = get(conn, ~p"/sources/#{source}/edit")
-      assert html_response(conn, 200) =~ "Editing \"#{source.custom_name}\""
-    end
-  end
-
   describe "update source" do
     setup [:create_source]
 
