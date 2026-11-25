@@ -143,6 +143,29 @@ defmodule PinchflatWeb.PageSnapshotTest do
         |> render_change()
       end)
 
+      downloaded =
+        media_item_with_attachments(%{
+          source_id: source.id,
+          title: "The Lost Colony of Roanoke",
+          description: "What happened to the 115 settlers?\n\nSources and further reading below."
+        })
+
+      snapshot("19-media-item", conn |> get(~p"/sources/#{source}/media/#{downloaded}") |> html_response(200))
+
+      failed =
+        media_item_fixture(%{
+          source_id: source.id,
+          title: "A video YouTube won't hand over",
+          media_filepath: nil,
+          prevent_download: true,
+          download_prevented_reason: "permanent_error",
+          error_type: "permanent",
+          last_error:
+            "ERROR: [youtube] abc123: Sign in to confirm your age. This video may be inappropriate for some users."
+        })
+
+      snapshot("19b-media-item-failed", conn |> get(~p"/sources/#{source}/media/#{failed}") |> html_response(200))
+
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end

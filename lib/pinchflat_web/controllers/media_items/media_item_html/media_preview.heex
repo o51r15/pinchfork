@@ -1,13 +1,21 @@
-<%= if media_type(@media_item) == :video do %>
-  <video controls class="max-h-128 w-full">
-    <source src={~p"/media/#{@media_item.uuid}/stream?v=#{DateTime.to_unix(@media_item.updated_at)}"} type="video/mp4" />
-    Your browser does not support the video element.
-  </video>
-<% end %>
-
-<%= if media_type(@media_item) == :audio do %>
-  <audio controls class="w-full">
-    <source src={~p"/media/#{@media_item.uuid}/stream?v=#{DateTime.to_unix(@media_item.updated_at)}"} type="audio/mpeg" />
-    Your browser does not support the audio element.
-  </audio>
+<%= case media_type(@media_item) do %>
+  <% :video -> %>
+    <video
+      controls
+      preload="metadata"
+      class="aspect-video max-h-[70vh] w-full bg-[#000000]"
+      src={stream_path(@media_item)}
+    >
+      Your browser can't play this video here. Use More › Open the file in a new tab.
+    </video>
+  <% :audio -> %>
+    <div class="px-5 py-4">
+      <audio controls preload="metadata" class="w-full" src={stream_path(@media_item)}>
+        Your browser can't play this audio here.
+      </audio>
+    </div>
+  <% _ -> %>
+    <p class="px-5 py-4 text-sm text-muted">
+      This file type can't be played in the browser. Use More › Open the file in a new tab.
+    </p>
 <% end %>

@@ -1,41 +1,100 @@
 defmodule PinchflatWeb.MediaItems.MediaItemController do
   use PinchflatWeb, :controller
+  use Pinchflat.Media.MediaQuery
 
   require Logger
 
   alias Pinchflat.Repo
   alias Pinchflat.Media
   alias Pinchflat.Media.MediaItem
+  alias Pinchflat.Media.SkipReason
   alias Pinchflat.Downloading.MediaDownloadWorker
 
   def show(conn, %{"id" => id}) do
     media_item =
       id
       |> Media.get_media_item!()
-      |> Repo.preload([:source, tasks: [:job]])
+      |> Repo.preload(source: :media_profile, tasks: [:job])
 
-    render(conn, :show, media_item: media_item)
+    jobs =
+      media_item.tasks
+      |> Enum.filter(&(&1.job && to_string(&1.job.state) in ~w(executing available scheduled retryable)))
+      |> Enum.sort_by(& &1.job.scheduled_at, {:desc, DateTime})
+
+    render(conn, :show,
+      media_item: media_item,
+      status: status(media_item),
+      jobs: jobs,
+      page_title: media_item.title
+    )
   end
 
+  # The two switches used to live on their own edit page; they're on the video page now
   def edit(conn, %{"id" => id}) do
     media_item = Media.get_media_item!(id)
-    changeset = Media.change_media_item(media_item)
 
-    render(conn, :edit, media_item: media_item, changeset: changeset)
+    redirect(conn, to: ~p"/sources/#{media_item.source_id}/media/#{media_item}")
   end
 
   def update(conn, %{"id" => id, "media_item" => params}) do
     media_item = Media.get_media_item!(id)
 
-    case Media.update_media_item(media_item, params) do
+    case Media.update_media_item(media_item, switch_attrs(media_item, params)) do
       {:ok, media_item} ->
         conn
-        |> put_flash(:info, "Media Item updated successfully.")
+        |> put_flash(:info, "Saved.")
         |> redirect(to: ~p"/sources/#{media_item.source_id}/media/#{media_item}")
 
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, :edit, media_item: media_item, changeset: changeset)
+      {:error, %Ecto.Changeset{}} ->
+        conn
+        |> put_flash(:error, "That couldn't be saved.")
+        |> redirect(to: ~p"/sources/#{media_item.source_id}/media/#{media_item}")
     end
+  end
+
+  # Turning automatic download off records it as the person's choice, so the video shows as
+  # "Turned off" rather than skipped. Turning it back on clears that, and a permanent failure
+  # with it, so the video is tried again.
+  defp switch_attrs(media_item, params) do
+    attrs = Map.take(params, ~w(prevent_download prevent_culling))
+
+    case attrs["prevent_download"] do
+      "true" when not media_item.prevent_download ->
+        Map.put(attrs, "download_prevented_reason", "manual")
+
+      "false" when media_item.prevent_download ->
+        attrs
+        |> Map.put("download_prevented_reason", nil)
+        |> then(&if(to_string(media_item.error_type) == "permanent", do: Map.put(&1, "error_type", nil), else: &1))
+
+      _ ->
+        attrs
+    end
+  end
+
+  # Where this video stands, as {state, detail}. Same buckets as the source page's counts.
+  defp status(%MediaItem{} = item) do
+    source = item.source
+    prevented = to_string(item.download_prevented_reason)
+
+    cond do
+      item.media_filepath -> {:downloaded, nil}
+      to_string(item.error_type) == "permanent" -> {:failed, nil}
+      prevented in ["manual", "user_script"] -> {:off, prevented}
+      prevented == "policy_other" -> {:skipped, :unavailable}
+      pending?(item) -> {if(item.last_error, do: :retrying, else: :pending), nil}
+      to_string(item.error_type) == "transient" and not item.prevent_download -> {:retrying, nil}
+      item.culled_at -> {:removed, source.retention_period_days}
+      true -> {:skipped, SkipReason.for_item(item, source, source.media_profile)}
+    end
+  end
+
+  defp pending?(item) do
+    MediaQuery.new()
+    |> MediaQuery.require_assoc(:media_profile)
+    |> where([mi], mi.id == ^item.id)
+    |> where(^dynamic(^MediaQuery.staged_pending()))
+    |> Repo.exists?()
   end
 
   def delete(conn, %{"id" => id} = params) do
@@ -44,9 +103,14 @@ defmodule PinchflatWeb.MediaItems.MediaItemController do
     media_item = Media.get_media_item!(id)
     {:ok, _} = Media.delete_media_files(media_item, %{prevent_download: prevent_download})
 
+    message =
+      if prevent_download,
+        do: "Files deleted. This video won't be downloaded again.",
+        else: "Files deleted."
+
     conn
-    |> put_flash(:info, "Files deleted successfully.")
-    |> redirect(to: ~p"/sources/#{media_item.source_id}")
+    |> put_flash(:info, message)
+    |> redirect(to: ~p"/sources/#{media_item.source_id}/media/#{media_item}")
   end
 
   def force_download(conn, %{"media_item_id" => id}) do
@@ -60,7 +124,7 @@ defmodule PinchflatWeb.MediaItems.MediaItemController do
       end
 
     conn
-    |> put_flash(:info, "Download task enqueued.")
+    |> put_flash(:info, "Download queued. It'll start in a moment.")
     |> redirect(to: ~p"/sources/#{media_item.source_id}/media/#{media_item}")
   end
 
