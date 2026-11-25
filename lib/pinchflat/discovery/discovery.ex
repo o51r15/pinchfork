@@ -44,6 +44,16 @@ defmodule Pinchflat.Discovery do
   end
 
   @doc """
+  When the newest suggestion was found or refreshed by a scan, or nil if there are none.
+
+  Returns DateTime.t() | nil
+  """
+  def last_scanned_at do
+    from(s in DiscoverySuggestion, select: max(s.scanned_at))
+    |> Repo.one()
+  end
+
+  @doc """
   Gets a single suggestion.
 
   Returns %DiscoverySuggestion{}. Raises `Ecto.NoResultsError` if not found.

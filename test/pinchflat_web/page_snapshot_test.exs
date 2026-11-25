@@ -166,6 +166,30 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
       snapshot("19b-media-item-failed", conn |> get(~p"/sources/#{source}/media/#{failed}") |> html_response(200))
 
+      Settings.set(discovery_enabled: true)
+
+      for {name, subs, videos, reason, cluster, score} <- [
+            {"Fall of Civilizations", 1_400_000, 21, "Mentioned 6 times by 3 of your sources", "History", 72.0},
+            {"Kings and Generals", 3_100_000, 640, "Featured by 2 of your channels", "History", 40.0},
+            {"Lemmino", 2_200_000, 38, "Mentioned 2 times by one of your sources", nil, 1.0}
+          ] do
+        {:ok, _} =
+          Pinchflat.Discovery.upsert_suggestion(%{
+            channel_id: "UC#{String.replace(name, " ", "")}",
+            url: "https://www.youtube.com/@#{String.replace(name, " ", "")}",
+            name: name,
+            subscriber_count: subs,
+            video_count: videos,
+            last_upload_at: DateTime.add(DateTime.utc_now(), -9, :day) |> DateTime.truncate(:second),
+            reason: reason,
+            cluster: cluster,
+            score: score,
+            scanned_at: DateTime.add(DateTime.utc_now(), -2, :day) |> DateTime.truncate(:second)
+          })
+      end
+
+      snapshot("24-discovery", conn |> get(~p"/discovery") |> html_response(200))
+
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-status", conn |> get(~p"/system/status") |> html_response(200))
     end
