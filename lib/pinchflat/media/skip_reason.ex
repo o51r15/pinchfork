@@ -33,6 +33,25 @@ defmodule Pinchflat.Media.SkipReason do
     end
   end
 
+  @doc """
+  The download rule (profile or source) that leaves this item out, or nil if it passes them all.
+  Unlike for_item/3 this doesn't look at prevention stamps: it answers "would the download
+  rules let this video through?", the same question MediaQuery.pending/0 asks in SQL.
+
+  Returns :short | :livestream | :profile_only | :cutoff | :duration | :title | nil
+  """
+  def rule(item, source, profile) do
+    cond do
+      item.short_form_content == true and profile.shorts_behaviour == :exclude -> :short
+      item.livestream == true and profile.livestream_behaviour == :exclude -> :livestream
+      not matches_only_rules?(item, profile) -> :profile_only
+      before_cutoff?(item, source) -> :cutoff
+      outside_duration?(item, source) -> :duration
+      not title_matches?(item, source) -> :title
+      true -> nil
+    end
+  end
+
   defp matches_only_rules?(item, %{shorts_behaviour: :only, livestream_behaviour: :only}),
     do: item.short_form_content == true or item.livestream == true
 
@@ -47,7 +66,10 @@ defmodule Pinchflat.Media.SkipReason do
     Date.compare(DateTime.to_date(item.uploaded_at), source.download_cutoff_date) == :lt
   end
 
-  defp outside_duration?(%{duration_seconds: nil}, _source), do: false
+  # Like the SQL in MediaQuery.meets_min_and_max_duration/0: with a limit set, an unknown
+  # length doesn't pass (NULL comparisons are never true)
+  defp outside_duration?(%{duration_seconds: nil}, source),
+    do: not is_nil(source.min_duration_seconds) or not is_nil(source.max_duration_seconds)
 
   defp outside_duration?(item, source) do
     (source.min_duration_seconds && item.duration_seconds < source.min_duration_seconds) ||

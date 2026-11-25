@@ -200,6 +200,23 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
         {:error, :download_failed}
 
+      # Members-only, and this source doesn't download members-only videos: it was never
+      # wanted, so it's skipped (like one marked members-only at index time), not failed.
+      # Indexing can't always tell members-only videos apart, so this is where they surface.
+      String.contains?(message_str, members_only_strings()) and
+          media_item.source.download_members_videos != true ->
+        Logger.info("Skipping members-only video #{media_item.id}: the source doesn't download members-only videos")
+
+        Media.update_media_item(media_item, %{
+          prevent_download: true,
+          error_type: nil,
+          last_error: message_str,
+          availability: "subscriber_only",
+          download_prevented_reason: "policy_members"
+        })
+
+        {:ok, :non_retry}
+
       String.contains?(message_str, permanent_failure_strings()) ->
         Logger.error("yt-dlp download permanently failed: #{inspect(message)}")
 
@@ -224,6 +241,15 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
         {:error, :download_failed}
     end
+  end
+
+  # yt-dlp's members-only errors (also in permanent_failure_strings/0). Same strings as the
+  # 20261125000004 migration that reclassified existing failures.
+  defp members_only_strings do
+    [
+      "This video is available to this channel's members",
+      "members-only"
+    ]
   end
 
   # PO Token error markers. The GVS-token warning yt-dlp emits is:

@@ -261,7 +261,7 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   defp generate_base_query("pending") do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
-    |> where(^dynamic(^MediaQuery.staged_pending()))
+    |> where(^dynamic(^MediaQuery.queued()))
   end
 
   defp generate_base_query("retry") do

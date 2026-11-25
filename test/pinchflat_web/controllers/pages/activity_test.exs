@@ -28,6 +28,16 @@ defmodule PinchflatWeb.Pages.ActivityTest do
       assert HistoryTableLive.count_for("pending") == 2
       assert conn |> get(~p"/activity") |> html_response(200) =~ ~r/Queued\s*<span[^>]*>\s*2\s*</
     end
+
+    test "Queued leaves out videos from unmonitored or switched-off sources" do
+      unmonitored = Pinchflat.SourcesFixtures.source_fixture(download_media: false)
+      switched_off = Pinchflat.SourcesFixtures.source_fixture(enabled: false)
+      media_item_fixture(media_filepath: nil, source_id: unmonitored.id)
+      media_item_fixture(media_filepath: nil, source_id: switched_off.id)
+      media_item_fixture(media_filepath: nil)
+
+      assert HistoryTableLive.count_for("pending") == 1
+    end
   end
 
   describe "the tab tables" do

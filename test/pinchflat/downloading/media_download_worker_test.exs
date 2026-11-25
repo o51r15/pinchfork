@@ -457,9 +457,8 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
         "Sign in to confirm",
         "age-restricted",
         "requires payment",
-        # Members / premium
-        "This video is available to this channel's members",
-        "members-only",
+        # Members / premium (members-only errors are skipped, not failed, when the source
+        # doesn't download members-only videos; see the members-only tests below)
         "premium",
         # Geo-blocked
         "not available in your country",
@@ -536,6 +535,42 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
         assert item.prevent_download == false,
                "Expected prevent_download == false for string: #{inspect(string)}"
       end
+    end
+  end
+
+  describe "members-only errors" do
+    setup do
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_downloadable_status, _opts, _ot, _addl ->
+          {:ok, "{}"}
+
+        _url, :download, _opts, _ot, _addl ->
+          {:error, "ERROR: [youtube] x: This video is available to this channel's members on level: Elite", 1}
+      end)
+
+      :ok
+    end
+
+    test "are skipped, not failed, when the source doesn't download members-only videos", %{media_item: media_item} do
+      Sources.update_source(media_item.source, %{download_members_videos: false})
+      expect(AppriseRunnerMock, :run, 0, fn _, _ -> {:ok, ""} end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+      item = Repo.reload(media_item)
+
+      assert item.prevent_download
+      assert item.download_prevented_reason == "policy_members"
+      assert item.error_type == nil
+      assert item.availability == "subscriber_only"
+      assert item.last_error =~ "members"
+    end
+
+    test "fail as before when the source does download members-only videos", %{media_item: media_item} do
+      {:ok, _} = Sources.update_source(media_item.source, %{download_members_videos: true})
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+
+      assert Repo.reload(media_item).error_type == "permanent"
     end
   end
 

@@ -6,6 +6,7 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
   alias Pinchflat.Media
   alias Pinchflat.Sources
   alias Pinchflat.Media.MediaItem
+  alias Pinchflat.Media.SkipReason
   alias Pinchflat.Tasks.Task, as: PFTask
   alias Pinchflat.Downloading.DownloadingHelpers
 
@@ -348,14 +349,20 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
       # Not policy-excluded by reason (set at index time)
       # Not members-only when source has members disabled
       # Meets the source's cutoff date (items before cutoff hidden by default)
+      # (an unknown availability is not members-only; without the is_nil check a NULL
+      # here made the whole condition NULL and hid the video)
+      # Fails the source's title or length filter: skipped, unless it was turned off or
+      # failed (those still show)
       not is_nil(mi.media_filepath) or
         (^MediaQuery.format_matching_profile_preference() and
            (is_nil(mi.download_prevented_reason) or
               mi.download_prevented_reason not in ^policy_reasons) and
-           not (s.download_members_videos == false and
+           not (s.download_members_videos == false and not is_nil(mi.availability) and
                   mi.availability in ^members_availability) and
            (is_nil(s.download_cutoff_date) or
-              fragment("?::date >= ?", mi.uploaded_at, s.download_cutoff_date)))
+              fragment("?::date >= ?", mi.uploaded_at, s.download_cutoff_date)) and
+           (mi.prevent_download or not is_nil(mi.error_type) or
+              (^MediaQuery.matches_source_title_regex() and ^MediaQuery.meets_min_and_max_duration())))
     )
   end
 
@@ -611,6 +618,11 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
       item.error_type == "transient" ->
         :retrying
 
+      # The source's or profile's download rules leave it out (same rules as the source
+      # page's Skipped count)
+      (rule = SkipReason.rule(item, source, mp)) in [:profile_only, :duration, :title] ->
+        %{profile_only: :skipped_profile_only, duration: :skipped_duration, title: :skipped_title}[rule]
+
       MapSet.member?(active_job_ids, item.id) ->
         :downloading
 
@@ -641,6 +653,9 @@ defmodule PinchflatWeb.Sources.YearGroupLive do
   defp status_label(:skipped_members), do: "Skipped · Members"
   defp status_label(:skipped_manual), do: "Turned off"
   defp status_label(:skipped_cutoff), do: "Skipped · Cutoff"
+  defp status_label(:skipped_duration), do: "Skipped · Length"
+  defp status_label(:skipped_title), do: "Skipped · Title"
+  defp status_label(:skipped_profile_only), do: "Skipped · Profile"
 
   defp status_kind(:downloaded), do: :ok
   defp status_kind(:downloading), do: :accent
