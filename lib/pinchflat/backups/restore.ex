@@ -363,7 +363,7 @@ defmodule Pinchflat.Backups.Restore do
   defp cancel_running_jobs do
     ids = Repo.all(from(j in Oban.Job, where: fragment("?::text", j.state) == "executing", select: j.id))
     Enum.each(ids, &Oban.cancel_job(Oban, &1))
-    if ids != [], do: Logger.info("Restore: cancelled running jobs #{inspect(ids)}")
+    if ids != [], do: Logger.info("Restore: cancelled running jobs #{Enum.join(ids, ", ")}")
     ids
   end
 
@@ -375,6 +375,6 @@ defmodule Pinchflat.Backups.Restore do
   # After a restore that didn't happen: cancelled jobs go back to available and run again
   defp requeue_jobs(ids) do
     Enum.each(ids, &Oban.retry_job(Oban, &1))
-    if ids != [], do: Logger.info("Restore didn't happen: put cancelled jobs #{inspect(ids)} back in the queue")
+    if ids != [], do: Logger.info("Restore didn't happen: put cancelled jobs #{Enum.join(ids, ", ")} back in the queue")
   end
 end
