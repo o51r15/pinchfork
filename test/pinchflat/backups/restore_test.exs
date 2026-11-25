@@ -128,11 +128,25 @@ defmodule Pinchflat.Backups.RestoreTest do
 
     test "a failed load says nothing changed and still resumes jobs", %{dir: dir} do
       path = write_gz(dir, "a.sql.gz", dump(20_250_101_000_000))
-      opts = fakes(self(), runner: fn _, _ -> {"ERROR: syntax error", 3} end)
+
+      # What psql really printed on the test stack, trimmed: noise first, then the error
+      output = """
+      psql:/tmp/pinchfork-restore-1/00-reset.sql:1: NOTICE:  drop cascades to 17 other objects
+      DETAIL:  drop cascades to extension pg_trgm
+      psql:/tmp/pinchfork-restore-1/01-dump.sql:1716: ERROR:  function this_function_does_not_exist() does not exist
+      LINE 1: SELECT this_function_does_not_exist();
+                     ^
+      HINT:  No function matches the given name and argument types.
+      """
+
+      opts = fakes(self(), runner: fn _, _ -> {output, 3} end)
 
       assert {:error, message} = Restore.restore(path, opts)
       assert message =~ "rolled back"
-      assert message =~ "syntax error"
+      assert message =~ "psql said: ERROR:  function this_function_does_not_exist() does not exist"
+      assert message =~ "HINT:"
+      refute message =~ "NOTICE"
+      refute message =~ "/tmp/"
       assert_received :resumed
       refute_received :finished
       refute_received :restarted

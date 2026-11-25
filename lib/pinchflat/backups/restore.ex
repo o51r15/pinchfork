@@ -246,20 +246,38 @@ defmodule Pinchflat.Backups.Restore do
       {output, _} ->
         Logger.error("Restore failed, rolled back: #{output}")
 
-        {:error,
-         "The restore failed and was rolled back, so nothing changed. psql said: #{String.slice(output, 0, 500)}"}
+        {:error, "The restore failed and was rolled back, so nothing changed. psql said: #{psql_error(output)}"}
+    end
+  end
+
+  # The ERROR line and the context psql prints with it, without the "psql:/tmp/...:123:" prefix
+  defp psql_error(output) do
+    lines = String.split(output, "\n", trim: true)
+
+    case Enum.drop_while(lines, &(not String.contains?(&1, "ERROR:"))) do
+      [] ->
+        output |> String.trim() |> String.slice(0, 500)
+
+      [first | rest] ->
+        detail = Enum.take_while(rest, &String.match?(&1, ~r/^(LINE|DETAIL|HINT|\s)/))
+
+        [String.replace(first, ~r/^psql:[^:]+:\d+:\s*/, "") | detail]
+        |> Enum.join("\n")
+        |> String.slice(0, 500)
     end
   end
 
   defp run_psql(sql_paths, db) do
+    # Query results (the dump's setval rows) go nowhere; errors still come back on stderr
     args =
-      ["-X", "-q", "-v", "ON_ERROR_STOP=1", "--single-transaction"] ++
+      ["-X", "-q", "-o", "/dev/null", "-v", "ON_ERROR_STOP=1", "--single-transaction"] ++
         ["-h", db.host, "-p", to_string(db.port), "-U", db.user, "-d", db.db, "--no-password"] ++
         Enum.flat_map(sql_paths, &["-f", &1])
 
-    # lock_timeout covers the schema drop; the dump sets its own values after that
+    # lock_timeout covers the schema drop (the dump sets its own values after that); warning
+    # level hides the "drop cascades to ..." notices
     System.cmd("psql", args,
-      env: [{"PGPASSWORD", db.pass}, {"PGOPTIONS", "-c lock_timeout=30s"}],
+      env: [{"PGPASSWORD", db.pass}, {"PGOPTIONS", "-c lock_timeout=30s -c client_min_messages=warning"}],
       stderr_to_stdout: true
     )
   end
