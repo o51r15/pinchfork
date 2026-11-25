@@ -90,10 +90,12 @@ defmodule Pinchflat.Discovery.Validator do
       playlist_end: 1
     ]
 
-    # Printed once for the channel (playlist level), so the channel's pictures (thumbnails) are
-    # there; the newest video's upload date comes from its first entry.
+    # Printed at playlist level, so the channel's pictures (thumbnails) are there. A channel
+    # with tabs prints a line for its Videos tab (newest video = entries.0) and one for the
+    # channel (newest video = entries.0.entries.0); parse_enrichment/2 merges the lines.
+    # No video count: at this level playlist_count counts tabs, not videos.
     output_template =
-      "playlist:%(.{channel_id,channel,channel_follower_count,channel_url,playlist_count,entries.0.upload_date,thumbnails})j"
+      "playlist:%(.{channel_id,channel,channel_follower_count,channel_url,entries.0.upload_date,entries.0.entries.0.upload_date,thumbnails})j"
 
     case runner.run(url, :discovery_enrich, command_opts, output_template, skip_sleep_interval: true) do
       {:ok, output} ->
@@ -105,33 +107,42 @@ defmodule Pinchflat.Discovery.Validator do
   end
 
   defp parse_enrichment(output, candidate) do
-    # Take the last non-empty line (yt-dlp may output multiple lines)
-    line =
+    lines =
       output
       |> String.split("\n", trim: true)
-      |> List.last("")
-
-    case Phoenix.json_library().decode(line) do
-      {:ok, data} ->
-        enriched =
-          Map.merge(candidate, %{
-            channel_id: data["channel_id"],
-            name: data["channel"],
-            url: data["channel_url"] || "https://www.youtube.com/channel/#{data["channel_id"]}",
-            subscriber_count: data["channel_follower_count"],
-            video_count: data["playlist_count"],
-            last_upload_at: parse_upload_date(data["entries.0.upload_date"] || data["upload_date"]),
-            thumbnail_url: avatar_url(data["thumbnails"])
-          })
-
-        if enriched.channel_id do
-          {:ok, enriched}
-        else
-          {:error, "No channel_id in response"}
+      |> Enum.flat_map(fn line ->
+        case Phoenix.json_library().decode(line) do
+          {:ok, %{} = data} -> [data]
+          _ -> []
         end
+      end)
 
-      {:error, _} ->
-        {:error, "Failed to parse JSON: #{String.slice(line, 0, 200)}"}
+    case Enum.find(lines, & &1["channel_id"]) do
+      nil when lines == [] ->
+        {:error, "Failed to parse JSON: #{String.slice(output, 0, 200)}"}
+
+      nil ->
+        {:error, "No channel_id in response"}
+
+      _first ->
+        # Later lines (the channel) fill in what earlier ones (a tab) lack
+        data = Enum.reduce(lines, %{}, fn l, acc -> Map.merge(acc, Map.reject(l, fn {_k, v} -> is_nil(v) end)) end)
+
+        upload_date =
+          Enum.find_value(lines, fn l ->
+            l["entries.0.upload_date"] || l["entries.0.entries.0.upload_date"] || l["upload_date"]
+          end)
+
+        {:ok,
+         Map.merge(candidate, %{
+           channel_id: data["channel_id"],
+           name: data["channel"],
+           url: data["channel_url"] || "https://www.youtube.com/channel/#{data["channel_id"]}",
+           subscriber_count: data["channel_follower_count"],
+           video_count: nil,
+           last_upload_at: parse_upload_date(upload_date),
+           thumbnail_url: Enum.find_value(lines, &avatar_url(&1["thumbnails"]))
+         })}
     end
   end
 
