@@ -264,7 +264,10 @@ defmodule PinchflatWeb.System.BackupLive do
       <.card :if={@phase == :confirm} title="What happens" class="mt-6" id="restore-confirm">
         <ol class="flex list-decimal flex-col gap-1.5 border-t border-line py-4 pl-10 pr-5 text-sm text-fg">
           <li>Pinchfork backs up the current database first, so you can go back.</li>
-          <li>Background jobs pause. If downloads are running, it waits up to 30 seconds for them.</li>
+          <li>
+            Background jobs pause. If downloads are running, it waits up to 2 minutes for them to finish;
+            if they're still going after that, nothing changes and you can try again.
+          </li>
           <li>
             The database is replaced in one step. If anything goes wrong, nothing changes.
           </li>

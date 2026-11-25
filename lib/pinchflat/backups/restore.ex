@@ -31,7 +31,8 @@ defmodule Pinchflat.Backups.Restore do
   alias Pinchflat.Backups
 
   @lock_resource :pinchfork_restore
-  @wait_for_jobs_ms 30_000
+  # Downloads can take a while; 30 seconds was too short in practice on the test stack
+  @wait_for_jobs_ms 120_000
 
   @steps [
     checking: "Checking the backup",
@@ -134,7 +135,7 @@ defmodule Pinchflat.Backups.Restore do
     * `:safety_backup` - `fn -> {:ok, filename} | {:error, reason} end`, for tests
     * `:finish` - `fn -> :ok | {:error, message} end` run after loading (migrations), for tests
     * `:restart` - `fn -> any end` that restarts Pinchfork after a restore, for tests
-    * `:wait_ms` - how long to wait for running jobs (default 30 seconds)
+    * `:wait_ms` - how long to wait for running jobs (default 2 minutes)
 
   Returns
     * {:ok, %{safety_backup: filename, warning: nil | message}} - restored; Pinchfork restarts
@@ -145,15 +146,23 @@ defmodule Pinchflat.Backups.Restore do
     # :global locks only exclude *different* requesters, so the requester must be this process
     lock = {@lock_resource, self()}
 
-    if :global.set_lock(lock, [node()], 0) do
-      try do
-        do_restore(path, opts)
-      after
-        :global.del_lock(lock, [node()])
+    result =
+      if :global.set_lock(lock, [node()], 0) do
+        try do
+          do_restore(path, opts)
+        after
+          :global.del_lock(lock, [node()])
+        end
+      else
+        {:error, "Another restore is already running."}
       end
-    else
-      {:error, "Another restore is already running."}
+
+    # The page may be gone by the time this finishes, so the log is the record
+    with {:error, message} <- result do
+      Logger.warning("Restore of #{Path.basename(path)} didn't happen: #{message}")
     end
+
+    result
   end
 
   defp do_restore(path, opts) do
