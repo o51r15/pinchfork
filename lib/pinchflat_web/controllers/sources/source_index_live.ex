@@ -6,6 +6,7 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
   alias Pinchflat.Sources
   alias Pinchflat.Sources.Source
   alias Pinchflat.Media.MediaItem
+  alias Pinchflat.Media.MediaQuery
 
   @impl true
   def mount(_params, _session, socket) do
@@ -74,8 +75,12 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
 
     <div :if={@all_count > 0} class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
       <.stat label="Sources" value={format_number(@all_count)} />
-      <.stat label="Videos indexed" value={format_number(@totals.total)} />
-      <.stat label="Downloaded" value={format_number(@totals.downloaded)} class="text-accent" />
+      <.stat label="Videos found" value={format_number(@totals.total)} />
+      <.stat
+        label="Downloaded"
+        value={"#{format_number(@totals.downloaded)} of #{format_number(@totals.wanted)}"}
+        class="text-accent"
+      />
       <.stat label="Monitored" value={"#{@monitored_count} of #{@all_count}"} />
     </div>
 
@@ -149,8 +154,8 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
 
     <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-7">
       <%= for source <- @sources do %>
-        <% counts = Map.get(@counts_by_source, source.id, %{total: 0, downloaded: 0}) %>
-        <% pct = if counts.total > 0, do: round(counts.downloaded / counts.total * 100), else: 0 %>
+        <% counts = Map.get(@counts_by_source, source.id, %{total: 0, downloaded: 0, wanted: 0}) %>
+        <% pct = if counts.wanted > 0, do: min(round(counts.downloaded / counts.wanted * 100), 100), else: 0 %>
         <div class="group pf-card flex flex-col overflow-hidden transition-colors hover:border-accent/60">
           <.link href={~p"/sources/#{source.id}"} class="relative block bg-surface-2" style="aspect-ratio: 2/3;">
             <img src={~p"/sources/#{source.id}/poster"} alt="" class="h-full w-full object-cover" loading="lazy" />
@@ -192,8 +197,11 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
             <div class="h-1 overflow-hidden rounded-full bg-surface-3" role="presentation">
               <div class="h-full rounded-full bg-accent" style={"width: #{pct}%"}></div>
             </div>
-            <div class="tabular font-mono text-[11.5px] text-muted">
-              {format_number(counts.downloaded)} / {format_number(counts.total)}
+            <div
+              class="tabular font-mono text-[11.5px] text-muted"
+              title={"#{counts.downloaded} downloaded of #{counts.wanted} wanted (#{counts.total} found on YouTube)"}
+            >
+              {format_number(counts.downloaded)} / {format_number(counts.wanted)}
             </div>
           </div>
         </div>
@@ -264,6 +272,11 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
         |> Map.new()
       end
 
+    wanted = wanted_counts(source_ids)
+
+    counts_by_source =
+      Map.new(counts_by_source, fn {id, counts} -> {id, Map.put(counts, :wanted, Map.get(wanted, id, 0))} end)
+
     # Apply Elixir-side sort for downloaded counts
     sources =
       case assigns.sort do
@@ -315,6 +328,32 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
           }
       )
 
+    live_ids = Repo.all(from s in live_sources, select: s.id)
+    totals = Map.put(totals, :wanted, wanted_counts(live_ids) |> Map.values() |> Enum.sum())
+
     assign(socket, all_count: all_count, monitored_count: monitored_count, totals: totals)
+  end
+
+  # Videos a source is meant to download: already downloaded, still wanted by the download
+  # rules (waiting or retrying), or permanently failed. Videos skipped by the profile or source
+  # rules, or turned off by hand, aren't counted, so "34 / 34" means nothing is missing.
+  # Returns %{source_id => count}
+  defp wanted_counts([]), do: %{}
+
+  defp wanted_counts(source_ids) do
+    MediaQuery.new()
+    |> MediaQuery.require_assoc(:media_profile)
+    |> where([mi], mi.source_id in ^source_ids)
+    |> where(
+      ^dynamic(
+        [mi],
+        not is_nil(mi.media_filepath) or fragment("COALESCE(?::text = 'permanent', false)", mi.error_type) or
+          ^MediaQuery.pending()
+      )
+    )
+    |> group_by([mi], mi.source_id)
+    |> select([mi], {mi.source_id, count(mi.id)})
+    |> Repo.all()
+    |> Map.new()
   end
 end

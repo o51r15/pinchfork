@@ -63,6 +63,8 @@ defmodule Pinchflat.Media do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
     |> where(^dynamic(^MediaQuery.for_source(source) and ^MediaQuery.pending()))
+    # Postgres returns rows in no particular order without this (SQLite returned insert order)
+    |> order_by([mi], asc: mi.id)
     |> Repo.all()
   end
 
