@@ -8,16 +8,19 @@ defmodule PinchflatWeb.System.BackupLiveTest do
 
   defmodule FakeRestorer do
     @moduledoc false
-    # Walks the steps like a real restore, then returns whatever the test asked for
-    def restore(_path, opts) do
-      notify = Keyword.fetch!(opts, :notify)
-      Enum.each(Keyword.keys(Restore.steps()), notify)
+    # Reports the steps like a real restore, then whatever result the test asked for
+    def start(_path, reply_to) do
+      Enum.each(Keyword.keys(Restore.steps()), &send(reply_to, {:restore_step, &1}))
 
-      Application.get_env(
-        :pinchflat,
-        :fake_restore_result,
-        {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz", warning: nil}}
-      )
+      result =
+        Application.get_env(
+          :pinchflat,
+          :fake_restore_result,
+          {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz", warning: nil}}
+        )
+
+      send(reply_to, {:restore_done, result})
+      :ok
     end
   end
 

@@ -193,6 +193,17 @@ defmodule Pinchflat.Backups.RestoreTest do
       refute_received :resumed
     end
 
+    test "start/3 runs on its own and reports each step and the result", %{dir: dir} do
+      path = write_gz(dir, "a.sql.gz", dump(20_250_101_000_000))
+
+      # The caller isn't linked: it could go away and the restore would carry on
+      assert :ok = Restore.start(path, self(), fakes(self()))
+
+      assert_receive {:restore_step, :checking}, 2_000
+      assert_receive {:restore_step, :restarting}, 2_000
+      assert_receive {:restore_done, {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz"}}}, 2_000
+    end
+
     test "only one restore at a time", %{dir: dir} do
       path = write_gz(dir, "a.sql.gz", dump(20_250_101_000_000))
       test_pid = self()

@@ -91,14 +91,12 @@ defmodule PinchflatWeb.System.BackupLive do
 
   def handle_event("confirm_change", %{"confirm" => confirm}, socket), do: {:noreply, assign(socket, confirm: confirm)}
 
+  # The restore runs in its own process (Restore.start/3), so leaving this page can't stop it
+  # halfway; it reports back here by message
   def handle_event("restore", %{"confirm" => "RESTORE"}, %{assigns: %{phase: :confirm}} = socket) do
-    pid = self()
-    path = socket.assigns.path
+    :ok = restorer().start(socket.assigns.path, self())
 
-    {:noreply,
-     socket
-     |> assign(phase: :running, step: :checking)
-     |> start_async(:restore, fn -> restorer().restore(path, notify: &send(pid, {:restore_step, &1})) end)}
+    {:noreply, assign(socket, phase: :running, step: :checking)}
   end
 
   def handle_event("restore", _params, socket), do: {:noreply, socket}
@@ -106,27 +104,22 @@ defmodule PinchflatWeb.System.BackupLive do
   @impl true
   def handle_info({:restore_step, step}, socket), do: {:noreply, assign(socket, step: step)}
 
-  @impl true
-  def handle_async(:inspect, {:ok, result}, socket), do: {:noreply, assign(socket, inspected: result)}
-
-  def handle_async(:inspect, {:exit, _}, socket),
-    do: {:noreply, assign(socket, inspected: {:error, "The backup couldn't be read."})}
-
   # Pinchfork restarts a few seconds after a restore, so the browser moves to a plain page that
   # waits for it to come back; this LiveView would otherwise reconnect into its confirm form
-  def handle_async(:restore, {:ok, {:ok, info}}, socket) do
+  def handle_info({:restore_done, {:ok, info}}, socket) do
     query = [restored: socket.assigns.filename, safety: info.safety_backup, warning: info[:warning] || ""]
 
     {:noreply, socket |> assign(phase: :done, result: {:ok, info}) |> redirect(to: ~p"/system/restarting?#{query}")}
   end
 
-  def handle_async(:restore, {:ok, {:error, message}}, socket),
+  def handle_info({:restore_done, {:error, message}}, socket),
     do: {:noreply, assign(socket, phase: :failed, result: {:error, message})}
 
-  def handle_async(:restore, {:exit, reason}, socket),
-    do:
-      {:noreply,
-       assign(socket, phase: :failed, result: {:error, "The restore stopped unexpectedly: #{inspect(reason)}"})}
+  @impl true
+  def handle_async(:inspect, {:ok, result}, socket), do: {:noreply, assign(socket, inspected: result)}
+
+  def handle_async(:inspect, {:exit, _}, socket),
+    do: {:noreply, assign(socket, inspected: {:error, "The backup couldn't be read."})}
 
   # Tests swap in a fake: a real restore would replace the test database
   defp restorer, do: Application.get_env(:pinchflat, :backup_restorer, Restore)

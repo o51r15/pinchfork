@@ -102,6 +102,30 @@ defmodule Pinchflat.Backups.Restore do
   end
 
   @doc """
+  Runs `restore/2` in its own process, not linked to the caller, so closing the page (or a
+  dropped connection) can't stop a restore halfway. Sends `{:restore_step, step}` as it goes and
+  `{:restore_done, result}` at the end to `reply_to`; if that process is gone they're dropped.
+
+  Returns :ok
+  """
+  def start(path, reply_to, opts \\ []) do
+    spawn(fn ->
+      opts = Keyword.put(opts, :notify, &send(reply_to, {:restore_step, &1}))
+
+      result =
+        try do
+          restore(path, opts)
+        rescue
+          e -> {:error, "The restore stopped unexpectedly: #{Exception.message(e)}"}
+        end
+
+      send(reply_to, {:restore_done, result})
+    end)
+
+    :ok
+  end
+
+  @doc """
   Restores the backup at `path`. `opts`:
 
     * `:notify` - called with each step atom as it starts (see `steps/0`)
