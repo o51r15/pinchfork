@@ -1,114 +1,140 @@
-<div class="mb-6 flex gap-3 flex-row items-center">
-  <.link href={~p"/sources/#{@source}"}>
-    <.icon name="hero-arrow-left" class="w-10 h-10 hover:dark:text-white" />
+<div class="mx-auto max-w-4xl">
+  <.link href={~p"/sources/#{@source}"} class="mb-3 inline-flex items-center gap-1.5 text-sm text-muted hover:text-fg">
+    <.icon name="hero-arrow-left" class="h-4 w-4" /> {@source.custom_name}
   </.link>
-  <h2 class="text-title-md2 font-bold text-black dark:text-white ml-4">Edit Metadata — {@source.custom_name}</h2>
-</div>
+  <.page_header
+    title="Artwork and description"
+    description="How this source appears in your media center. Pinchfork fills these in from YouTube; lock anything you've changed so a refresh doesn't overwrite it."
+  />
 
-<div
-  class="rounded-sm border border-stroke bg-white px-5 pb-6 pt-6 shadow-default dark:border-strokedark dark:bg-boxdark sm:px-7.5"
-  x-data="{ tab: 'general' }"
->
-  <%!-- Tab headers --%>
-  <div class="flex border-b border-strokedark mb-6">
-    <button
-      x-on:click="tab = 'general'"
-      x-bind:class="tab === 'general' ? 'border-b-2 border-primary text-primary' : 'text-gray-400 hover:text-white'"
-      class="px-4 py-2 text-sm font-medium transition-colors"
-    >
-      General
-    </button>
-    <button
-      x-on:click="tab = 'poster'"
-      x-bind:class="tab === 'poster' ? 'border-b-2 border-primary text-primary' : 'text-gray-400 hover:text-white'"
-      class="px-4 py-2 text-sm font-medium transition-colors"
-    >
-      Poster
-    </button>
-  </div>
+  <div x-data={"{ tab: '#{@tab}' }"}>
+    <nav class="-mb-px mb-5 flex gap-6 border-b border-line" role="tablist">
+      <button
+        :for={{id, label} <- [{"general", "Name and description"}, {"poster", "Poster"}]}
+        type="button"
+        role="tab"
+        x-on:click={"tab = '#{id}'; history.replaceState(null, '', '?tab=#{id}')"}
+        x-bind:aria-selected={"tab === '#{id}'"}
+        x-bind:class={"tab === '#{id}' ? 'border-accent text-fg' : 'border-transparent text-muted hover:text-fg'"}
+        class="border-b-2 py-3 text-sm font-semibold transition-colors"
+      >
+        {label}
+      </button>
+    </nav>
 
-  <%!-- GENERAL TAB --%>
-  <div x-show="tab === 'general'">
-    <.simple_form :let={f} for={@changeset} action={~p"/sources/#{@source}/edit_metadata"} method="post">
-      <.error :if={@changeset.action}>
-        Oops, something went wrong! Please check the errors below.
-      </.error>
-
-      <%!-- Name + lock --%>
-      <div class="flex items-end gap-3">
-        <div class="flex-1">
-          <.input field={f[:custom_name]} type="text" label="Name" />
-        </div>
-        <div class="mb-5 flex items-center gap-2">
-          <.input
-            field={f[:custom_name_locked]}
-            type="toggle"
-            label="Lock"
-            label_suffix=" (prevents metadata refresh overwrite)"
-          />
-        </div>
-      </div>
-
-      <%!-- Description + lock --%>
-      <div class="flex items-end gap-3">
-        <div class="flex-1">
-          <.input field={f[:description]} type="textarea" label="Description" />
-        </div>
-        <div class="mb-5 flex items-center gap-2">
-          <.input
-            field={f[:description_locked]}
-            type="toggle"
-            label="Lock"
-            label_suffix=" (prevents metadata refresh overwrite)"
-          />
-        </div>
-      </div>
-
-      <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Save Changes</.button>
-    </.simple_form>
-  </div>
-
-  <%!-- POSTER TAB --%>
-  <div x-show="tab === 'poster'" x-cloak>
-    <%!-- Current poster --%>
-    <div class="mb-6 flex items-start gap-6">
-      <div class="w-32 rounded-lg overflow-hidden shadow-lg flex-shrink-0" style="aspect-ratio: 2/3;">
-        <img src={~p"/sources/#{@source.id}/poster"} alt={@source.custom_name} class="w-full h-full object-cover" />
-      </div>
-      <div>
-        <p class="text-white font-medium mb-1">Current Poster</p>
-        <%= if @source.custom_poster_filepath do %>
-          <p class="text-xs text-primary mb-3">🔒 Custom poster — locked until removed</p>
+    <%!-- Name and description --%>
+    <div x-show="tab === 'general'" x-cloak={@tab != "general"} role="tabpanel">
+      <.form :let={f} for={@changeset} action={~p"/sources/#{@source}/edit_metadata"} method="post" id="metadata-form">
+        <.card>
+          <div class="px-5 pt-4 pb-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <label for="metadata_name" class="text-sm font-medium text-fg">Name</label>
+              <.lock_switch field={f[:custom_name_locked]} />
+            </div>
+            <input
+              type="text"
+              id="metadata_name"
+              name={f[:custom_name].name}
+              value={f[:custom_name].value}
+              class="pf-input mt-1.5"
+            />
+            <p :for={msg <- Enum.map(f[:custom_name].errors, &translate_error/1)} class="mt-1.5 text-[13px] text-bad">{msg}</p>
+          </div>
+          <div class="border-t border-line px-5 pt-4 pb-5">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <label for="metadata_description" class="text-sm font-medium text-fg">Description</label>
+              <.lock_switch field={f[:description_locked]} />
+            </div>
+            <textarea
+              id="metadata_description"
+              name={f[:description].name}
+              rows="9"
+              class="pf-input mt-1.5 h-auto py-2.5 leading-6"
+            >{f[:description].value}</textarea>
+            <p class="mt-1.5 text-xs text-muted">Shown in Plex, Jellyfin and podcast apps.</p>
+          </div>
+        </.card>
+        <div class="mt-5 flex justify-end gap-2">
           <.link
-            href={~p"/sources/#{@source}/custom_poster"}
-            method="delete"
-            data-confirm="Remove custom poster and revert to auto-fetched image?"
-            class="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded border border-red-700 bg-red-900 hover:bg-red-800 text-white transition-colors"
+            href={~p"/sources/#{@source}"}
+            class="inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold text-muted hover:text-fg"
           >
-            <.icon name="hero-trash" class="w-4 h-4" /> Remove Custom Poster
+            Cancel
           </.link>
-        <% else %>
-          <p class="text-xs text-gray-400 mb-3">Auto-fetched from YouTube. Upload a custom poster to override.</p>
-        <% end %>
-      </div>
-    </div>
-
-    <%!-- Upload form --%>
-    <div class="border border-strokedark rounded-lg p-5 mb-4">
-      <h3 class="text-white font-medium mb-4">Upload Image</h3>
-      <.form :let={f} for={%{}} action={~p"/sources/#{@source}/custom_poster"} method="post" multipart={true}>
-        <.input field={f[:upload]} name="poster[upload]" type="file" label="Choose file" />
-        <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Upload Poster</.button>
+          <button
+            type="submit"
+            class="inline-flex h-10 items-center rounded-lg bg-accent px-5 text-sm font-semibold text-onaccent hover:opacity-90"
+          >
+            Save
+          </button>
+        </div>
       </.form>
     </div>
 
-    <%!-- URL form --%>
-    <div class="border border-strokedark rounded-lg p-5">
-      <h3 class="text-white font-medium mb-4">Use Image URL</h3>
-      <.form :let={f} for={%{}} action={~p"/sources/#{@source}/custom_poster"} method="post">
-        <.input field={f[:url]} name="poster[url]" type="text" label="Image URL" placeholder="https://..." />
-        <.button class="mt-4 w-full sm:w-auto" rounding="rounded-lg">Set from URL</.button>
-      </.form>
+    <%!-- Poster --%>
+    <div x-show="tab === 'poster'" x-cloak={@tab != "poster"} role="tabpanel">
+      <.card>
+        <div class="flex flex-wrap gap-6 p-5">
+          <div class="w-40 shrink-0 overflow-hidden rounded-lg border border-line bg-surface-2 shadow-lg" style="aspect-ratio: 2/3;">
+            <img src={~p"/sources/#{@source.id}/poster"} alt="Current poster" class="h-full w-full object-cover" />
+          </div>
+          <div class="min-w-[240px] flex-1">
+            <h2 class="text-base font-semibold text-fg">Current poster</h2>
+            <div class="mt-2">
+              <.status_chip :if={@source.custom_poster_filepath} kind={:accent}>Your own image</.status_chip>
+              <.status_chip :if={!@source.custom_poster_filepath}>From YouTube</.status_chip>
+            </div>
+            <p class="mt-2 text-[13px] leading-5 text-muted">
+              <%= if @source.custom_poster_filepath do %>
+                Refreshing artwork from YouTube won't replace it. Remove it to go back to YouTube's image.
+              <% else %>
+                Taken from the channel's YouTube artwork. Upload your own or use a link to replace it.
+              <% end %>
+            </p>
+            <.link
+              :if={@source.custom_poster_filepath}
+              href={~p"/sources/#{@source}/custom_poster"}
+              method="delete"
+              data-confirm="Remove your poster and go back to the one from YouTube?"
+              class="mt-4 inline-flex h-9 items-center gap-1.5 rounded-lg border border-bad/40 px-3.5 text-sm font-semibold text-bad hover:bg-bad/10"
+            >
+              <.icon name="hero-trash-mini" class="h-4 w-4" /> Remove my poster
+            </.link>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 border-t border-line md:grid-cols-2">
+          <.form for={%{}} action={~p"/sources/#{@source}/custom_poster"} method="post" multipart={true} class="p-5" id="poster-upload-form">
+            <h3 class="text-sm font-semibold text-fg">Upload an image</h3>
+            <p class="mt-1 text-[13px] text-muted">JPG, PNG or WebP, up to 10 MB. Tall (2:3) images look best.</p>
+            <input
+              type="file"
+              name="poster[upload]"
+              accept="image/jpeg,image/png,image/webp"
+              required
+              class="mt-3 block w-full text-sm text-muted file:mr-3 file:h-9 file:cursor-pointer file:rounded-lg file:border file:border-line file:bg-surface-2 file:px-3 file:text-sm file:font-semibold file:text-fg hover:file:bg-surface-3"
+            />
+            <button type="submit" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg bg-accent px-4 text-sm font-semibold text-onaccent hover:opacity-90">
+              <.icon name="hero-arrow-up-tray-mini" class="h-4 w-4" /> Upload
+            </button>
+          </.form>
+
+          <.form for={%{}} action={~p"/sources/#{@source}/custom_poster"} method="post" class="border-t border-line p-5 md:border-t-0 md:border-l" id="poster-url-form">
+            <h3 class="text-sm font-semibold text-fg">Use an image link</h3>
+            <p class="mt-1 text-[13px] text-muted">Pinchfork downloads the image and keeps its own copy.</p>
+            <input
+              type="url"
+              name="poster[url]"
+              placeholder="https://…"
+              required
+              class="pf-input mt-3 font-mono text-sm"
+            />
+            <button type="submit" class="mt-3 inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-4 text-sm font-semibold text-fg hover:bg-surface-2">
+              <.icon name="hero-link-mini" class="h-4 w-4" /> Use this image
+            </button>
+          </.form>
+        </div>
+      </.card>
     </div>
   </div>
 </div>

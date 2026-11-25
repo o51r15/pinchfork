@@ -107,6 +107,15 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
       snapshot("12c-source-edit", conn |> get(~p"/sources/#{source}/edit") |> html_response(200))
 
+      Pinchflat.Sources.update_source(
+        source,
+        %{custom_name_locked: true, description: "A history channel. New episodes most weeks."},
+        run_post_commit_tasks: false
+      )
+
+      snapshot("12e-source-metadata", conn |> get(~p"/sources/#{source}/edit_metadata") |> html_response(200))
+      snapshot("12f-source-poster", conn |> get(~p"/sources/#{source}/edit_metadata?tab=poster") |> html_response(200))
+
       snapshot_live("12d-source-edit-advanced", conn, ~p"/sources/#{source}/edit", fn view ->
         view |> element("#toggle-advanced") |> render_click()
 

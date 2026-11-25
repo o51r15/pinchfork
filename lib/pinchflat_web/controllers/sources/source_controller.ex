@@ -370,10 +370,12 @@ defmodule PinchflatWeb.Sources.SourceController do
     )
   end
 
-  def edit_metadata(conn, %{"source_id" => id}) do
+  def edit_metadata(conn, %{"source_id" => id} = params) do
     source = Sources.get_source!(id)
     changeset = Sources.change_source(source)
-    render(conn, :edit_metadata, source: source, changeset: changeset)
+    tab = if params["tab"] == "poster", do: "poster", else: "general"
+
+    render(conn, :edit_metadata, source: source, changeset: changeset, tab: tab)
   end
 
   def update_metadata(conn, %{"source_id" => id, "source" => params}) do
@@ -383,11 +385,11 @@ defmodule PinchflatWeb.Sources.SourceController do
     case Sources.update_source(source, allowed, run_post_commit_tasks: false) do
       {:ok, source} ->
         conn
-        |> put_flash(:info, "Metadata updated.")
+        |> put_flash(:info, "Name and description saved.")
         |> redirect(to: ~p"/sources/#{source}")
 
       {:error, changeset} ->
-        render(conn, :edit_metadata, source: source, changeset: changeset)
+        render(conn, :edit_metadata, source: source, changeset: changeset, tab: "general")
     end
   end
 
@@ -426,11 +428,16 @@ defmodule PinchflatWeb.Sources.SourceController do
     case result do
       {:ok, path} ->
         Sources.update_source(source, %{custom_poster_filepath: path}, run_post_commit_tasks: false)
-        conn |> put_flash(:info, "Custom poster saved.") |> redirect(to: ~p"/sources/#{source}/edit_metadata")
+        conn
+        |> put_flash(:info, "Poster saved.")
+        |> redirect(to: ~p"/sources/#{source}/edit_metadata?tab=poster")
 
       {:error, msg} ->
         changeset = Sources.change_source(source)
-        conn |> put_flash(:error, msg) |> render(:edit_metadata, source: source, changeset: changeset)
+
+        conn
+        |> put_flash(:error, msg)
+        |> render(:edit_metadata, source: source, changeset: changeset, tab: "poster")
     end
   end
 
@@ -444,8 +451,8 @@ defmodule PinchflatWeb.Sources.SourceController do
     Sources.update_source(source, %{custom_poster_filepath: nil}, run_post_commit_tasks: false)
 
     conn
-    |> put_flash(:info, "Custom poster removed.")
-    |> redirect(to: ~p"/sources/#{source}/edit_metadata")
+    |> put_flash(:info, "Custom poster removed. The one from YouTube is back.")
+    |> redirect(to: ~p"/sources/#{source}/edit_metadata?tab=poster")
   end
 
   # Determines the file extension for a poster based on content-type, falling back

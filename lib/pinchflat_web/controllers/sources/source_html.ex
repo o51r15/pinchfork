@@ -131,6 +131,28 @@ defmodule PinchflatWeb.Sources.SourceHTML do
   defp plural(1, word), do: word
   defp plural(_, word), do: word <> "s"
 
+  @doc """
+  The "keep my version" switch next to a name or description, so a refresh from YouTube
+  doesn't overwrite what the user wrote.
+  """
+  attr :field, Phoenix.HTML.FormField, required: true
+
+  def lock_switch(assigns) do
+    assigns = assign(assigns, :checked, Phoenix.HTML.Form.normalize_value("checkbox", assigns.field.value))
+
+    ~H"""
+    <label class="inline-flex cursor-pointer items-center gap-2 text-[13px] text-muted" title="When on, refreshing from YouTube won't change this">
+      <input type="hidden" name={@field.name} value="false" />
+      <input type="checkbox" id={@field.id} name={@field.name} value="true" checked={@checked} class="peer sr-only" />
+      <.icon name="hero-lock-closed-mini" class="h-4 w-4 peer-checked:text-accent" />
+      Keep when refreshing
+      <span class="relative h-5 w-9 rounded-full bg-surface-3 transition-colors peer-checked:bg-accent peer-checked:[&>span]:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-accent/50">
+        <span class="absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-[#ffffff] shadow transition-transform"></span>
+      </span>
+    </label>
+    """
+  end
+
   def menu_item_class do
     "flex items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-fg hover:bg-surface-2"
   end
