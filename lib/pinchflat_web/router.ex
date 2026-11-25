@@ -74,6 +74,8 @@ defmodule PinchflatWeb.Router do
       live "/settings/:page", Settings.SettingsLive, :show
       live "/media_profiles/new", MediaProfiles.MediaProfileFormLive, :new
       live "/media_profiles/:id/edit", MediaProfiles.MediaProfileFormLive, :edit
+      live "/system/backup/upload", System.BackupLive, :upload
+      live "/system/backup/:filename/restore", System.BackupLive, :restore
     end
 
     resources "/media_profiles", MediaProfiles.MediaProfileController, only: [:index, :show, :delete]

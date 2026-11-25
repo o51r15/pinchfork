@@ -4,6 +4,13 @@
     description="A copy of Pinchfork's database: sources, profiles, settings and the index of every video. Your downloaded files aren't included."
   >
     <:actions>
+      <.link
+        navigate={~p"/system/backup/upload"}
+        class="inline-flex h-9 items-center gap-1.5 rounded-lg border border-line px-3.5 text-sm font-semibold text-fg hover:bg-surface-2"
+        id="upload-backup"
+      >
+        <.icon name="hero-arrow-up-tray-mini" class="h-4 w-4" /> Upload a backup
+      </.link>
       <form
         action={~p"/system/backup"}
         method="post"
@@ -97,6 +104,12 @@
             <.icon name="hero-arrow-down-tray-mini" class="h-4 w-4" /> Download
           </.link>
           <.link
+            navigate={~p"/system/backup/#{backup.filename}/restore"}
+            class="inline-flex h-8 items-center gap-1.5 rounded-lg border border-line px-3 text-[13px] font-semibold text-fg hover:bg-surface-2"
+          >
+            <.icon name="hero-arrow-uturn-left-mini" class="h-4 w-4" /> Restore
+          </.link>
+          <.link
             href={~p"/system/backup/#{backup.filename}"}
             method="delete"
             data-confirm="Delete this backup? This cannot be undone."
@@ -112,13 +125,13 @@
   <%!-- Restoring --%>
   <.card
     title="Restoring a backup"
-    description="This replaces everything in the database with the backup. Try it on a copy first if you can."
+    description="Use Restore next to a backup: it makes a safety backup first and changes nothing if it fails. If Pinchfork won't start at all, you can restore by hand."
     class="mt-6"
     id="backup-restore"
   >
     <div class="flex flex-col gap-3 border-t border-line px-5 py-4 text-sm text-fg">
       <p>
-        On the host, in the folder that holds your backups, run these one at a time. They use the container
+        To restore by hand: on the host, in the folder that holds your backups, run these one at a time. They use the container
         names from the sample compose file (<code class="font-mono text-[13px]">pinchfork</code> and <code class="font-mono text-[13px]">pinchfork-db</code>); change them if yours differ, and put your backup's file name in the third line.
       </p>
       <.command_block

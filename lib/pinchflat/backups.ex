@@ -137,7 +137,9 @@ defmodule Pinchflat.Backups do
     end
   end
 
-  defp parse_database_url do
+  @doc false
+  # Also used by Backups.Restore
+  def parse_database_url do
     url = System.get_env("DATABASE_URL", "")
 
     if url == "" do
