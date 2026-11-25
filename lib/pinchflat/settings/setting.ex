@@ -65,5 +65,9 @@ defmodule Pinchflat.Settings.Setting do
     |> cast(attrs, @allowed_fields)
     |> validate_required(@required_fields)
     |> validate_number(:extractor_sleep_interval_seconds, greater_than_or_equal_to: 0)
+    # yt-dlp's --limit-rate format: a number with an optional K, M or G suffix
+    |> validate_format(:download_throughput_limit, ~r/\A\d+(\.\d+)?[KMG]?\z/i,
+      message: "use a number with K, M or G, like 500K or 4.2M"
+    )
   end
 end

@@ -165,8 +165,8 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
       class="rounded-sm border border-stroke bg-white px-5 py-8 shadow-default dark:border-strokedark dark:bg-boxdark text-center"
     >
       <p class="text-lg text-bodydark mb-4">Discovery is disabled.</p>
-      <.link href={~p"/settings"} class="text-primary hover:underline">
-        Enable it in Settings → Discovery
+      <.link href={~p"/settings/discovery"} class="text-primary hover:underline">
+        Turn it on in Settings → Discovery
       </.link>
     </div>
 

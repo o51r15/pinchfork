@@ -3,31 +3,13 @@ defmodule PinchflatWeb.SettingControllerTest do
 
   alias Pinchflat.Utils.FilesystemUtils
 
-  describe "show settings" do
-    test "renders the page", %{conn: conn} do
-      conn = get(conn, ~p"/settings")
-
-      assert html_response(conn, 200) =~ "Settings"
+  describe "old settings addresses" do
+    test "/settings goes to General", %{conn: conn} do
+      assert redirected_to(get(conn, ~p"/settings")) == ~p"/settings/general"
     end
-  end
 
-  describe "update settings" do
-    test "saves and redirects when data is valid", %{conn: conn} do
-      update_attrs = %{apprise_server: "test://server"}
-
-      conn = put(conn, ~p"/settings", setting: update_attrs)
-      assert redirected_to(conn) == ~p"/settings"
-
-      conn = get(conn, ~p"/settings")
-      assert html_response(conn, 200) =~ update_attrs[:apprise_server]
-    end
-  end
-
-  describe "app_info" do
-    test "renders the page", %{conn: conn} do
-      conn = get(conn, ~p"/app_info")
-
-      assert html_response(conn, 200) =~ "App Info"
+    test "/app_info goes to General", %{conn: conn} do
+      assert redirected_to(get(conn, ~p"/app_info")) == ~p"/settings/general"
     end
   end
 
@@ -47,8 +29,8 @@ defmodule PinchflatWeb.SettingControllerTest do
     test "redirects when log file is not found", %{conn: conn} do
       conn = get(conn, ~p"/download_logs")
 
-      assert redirected_to(conn) == ~p"/app_info"
-      assert conn.assigns[:flash]["error"] == "Log file couldn't be found"
+      assert redirected_to(conn) == ~p"/settings/general"
+      assert conn.assigns[:flash]["error"] == "The log file couldn't be found."
     end
   end
 end

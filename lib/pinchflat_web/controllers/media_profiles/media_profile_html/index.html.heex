@@ -1,36 +1,51 @@
-<div class="mb-6 flex gap-3 flex-row items-center justify-between">
-  <h2 class="text-title-md2 font-bold text-black dark:text-white">
-    Media Profiles
-  </h2>
-  <nav>
+<.page_header
+  title="Media Profiles"
+  description="A profile decides video quality, subtitles, artwork and how files are named. Every source uses one."
+>
+  <:actions>
     <.link href={~p"/media_profiles/new"}>
-      <.button color="bg-primary" rounding="rounded-lg">
-        <span class="font-bold text-xl mx-2">+</span> New <span class="hidden sm:inline pl-1">Media Profile</span>
+      <.button color="bg-primary">
+        <.icon name="hero-plus" class="mr-1.5 h-4 w-4" /> New profile
       </.button>
     </.link>
-  </nav>
-</div>
-<div class="rounded-sm border border-stroke bg-white shadow-default dark:border-strokedark dark:bg-boxdark">
-  <div class="max-w-full overflow-x-auto">
-    <div class="flex flex-col gap-10 min-w-max">
-      <.table rows={@media_profiles} table_class="text-black dark:text-white">
-        <:col :let={media_profile} label="Name" class="truncate max-w-xs">
-          <.subtle_link href={~p"/media_profiles/#{media_profile.id}"}>
-            {media_profile.name}
-          </.subtle_link>
-        </:col>
-        <:col :let={media_profile} label="Preferred Resolution">
-          {media_profile.preferred_resolution}
-        </:col>
-        <:col :let={media_profile} label="Sources">
-          <.subtle_link href={~p"/media_profiles/#{media_profile.id}/#tab-sources"}>
-            <.localized_number number={media_profile.source_count} />
-          </.subtle_link>
-        </:col>
-        <:col :let={media_profile} label="" class="flex justify-end">
-          <.icon_link href={~p"/media_profiles/#{media_profile.id}/edit"} icon="hero-pencil-square" class="mr-4" />
-        </:col>
-      </.table>
+  </:actions>
+</.page_header>
+
+<.card :if={@media_profiles == []}>
+  <.empty_state
+    icon="hero-adjustments-horizontal"
+    title="No media profiles yet"
+    description="Create one to choose quality and file naming, then pick it when you add a source."
+  />
+</.card>
+
+<div :if={@media_profiles != []} class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+  <.link
+    :for={profile <- @media_profiles}
+    href={~p"/media_profiles/#{profile.id}"}
+    id={"media-profile-#{profile.id}"}
+    class="pf-card flex flex-col gap-3 p-5 transition-colors hover:border-accent/60"
+  >
+    <div class="flex items-start justify-between gap-3">
+      <h2 class="min-w-0 truncate text-base font-semibold text-fg">{profile.name}</h2>
+      <.status_chip kind={if profile.source_count > 0, do: :accent, else: :neutral} class="shrink-0">
+        {profile.source_count} {if profile.source_count == 1, do: "source", else: "sources"}
+      </.status_chip>
     </div>
-  </div>
+    <dl class="grid grid-cols-2 gap-3 text-[13px]">
+      <div>
+        <dt class="text-muted">Quality</dt>
+        <dd class="mt-0.5 font-medium text-fg">
+          {if profile.preferred_resolution == :audio, do: "Audio only", else: profile.preferred_resolution}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-muted">Container</dt>
+        <dd class="mt-0.5 font-medium text-fg">{profile.media_container || "Default"}</dd>
+      </div>
+    </dl>
+    <p class="truncate font-mono text-xs text-muted" title={profile.output_path_template}>
+      {profile.output_path_template}
+    </p>
+  </.link>
 </div>

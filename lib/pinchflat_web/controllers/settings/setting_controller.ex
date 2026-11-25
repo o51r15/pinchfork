@@ -1,42 +1,24 @@
 defmodule PinchflatWeb.Settings.SettingController do
+  @moduledoc """
+  What's left of the old one-page Settings: redirects into the Settings pages
+  (PinchflatWeb.Settings.SettingsLive) and the log download.
+  """
+
   use PinchflatWeb, :controller
 
-  alias Pinchflat.Settings
-
-  def show(conn, _params) do
-    setting = Settings.record()
-    changeset = Settings.change_setting(setting)
-
-    render(conn, "show.html", changeset: changeset)
-  end
-
-  def update(conn, %{"setting" => setting_params}) do
-    setting = Settings.record()
-
-    case Settings.update_setting(setting, setting_params) do
-      {:ok, _} ->
-        conn
-        |> put_flash(:info, "Settings updated successfully.")
-        |> redirect(to: ~p"/settings")
-
-      {:error, %Ecto.Changeset{} = changeset} ->
-        render(conn, "show.html", changeset: changeset)
-    end
-  end
-
-  def app_info(conn, _params) do
-    render(conn, "app_info.html")
-  end
+  # /settings and the old /app_info page both land on General
+  def show(conn, _params), do: redirect(conn, to: ~p"/settings/general")
+  def app_info(conn, _params), do: redirect(conn, to: ~p"/settings/general")
 
   def download_logs(conn, _params) do
     log_path = Application.get_env(:pinchflat, :log_path)
 
     if log_path && File.exists?(log_path) do
-      send_download(conn, {:file, log_path}, filename: "pinchflat-logs-#{Date.utc_today()}.txt")
+      send_download(conn, {:file, log_path}, filename: "pinchfork-logs-#{Date.utc_today()}.txt")
     else
       conn
-      |> put_flash(:error, "Log file couldn't be found")
-      |> redirect(to: ~p"/app_info")
+      |> put_flash(:error, "The log file couldn't be found.")
+      |> redirect(to: ~p"/settings/general")
     end
   end
 end

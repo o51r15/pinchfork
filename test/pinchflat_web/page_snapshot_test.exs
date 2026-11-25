@@ -82,6 +82,7 @@ defmodule PinchflatWeb.PageSnapshotTest do
     test "pages", %{conn: conn, source: source, profile: profile} do
       snapshot("18-media-profile-show", conn |> get(~p"/media_profiles/#{profile}") |> html_response(200))
       snapshot("20-settings-youtube", conn |> get(~p"/settings/youtube") |> html_response(200))
+
       snapshot_live("21-settings-youtube-edited", conn, ~p"/settings/youtube", fn view ->
         view |> form("#settings-form", setting: %{youtube_api_key: "AIzaSyD-example-key"}) |> render_change()
       end)
@@ -89,7 +90,15 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("10-sources", conn |> get(~p"/sources") |> html_response(200))
       snapshot("11-source-show", conn |> get(~p"/sources/#{source}") |> html_response(200))
       snapshot("12-source-new", conn |> get(~p"/sources/new") |> html_response(200))
-      snapshot("13-settings", conn |> get(~p"/settings") |> html_response(200))
+
+      for page <- ~w(downloads notifications feeds discovery general) do
+        snapshot("22-settings-#{page}", conn |> get("/settings/#{page}") |> html_response(200))
+      end
+
+      snapshot_live("23-settings-downloads-advanced", conn, ~p"/settings/downloads", fn view ->
+        view |> element("#toggle-advanced") |> render_click()
+      end)
+
       snapshot("14-media-profiles", conn |> get(~p"/media_profiles") |> html_response(200))
       snapshot("15-media-profile-new", conn |> get(~p"/media_profiles/new") |> html_response(200))
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))

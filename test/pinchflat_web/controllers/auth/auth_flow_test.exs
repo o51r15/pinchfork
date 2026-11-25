@@ -146,7 +146,7 @@ defmodule PinchflatWeb.Auth.AuthFlowTest do
 
     test "the app shell shows the account menu", %{conn: conn, user: user} do
       Settings.set(onboarding: false)
-      html = conn |> get(~p"/settings") |> html_response(200)
+      html = conn |> get(~p"/settings/general") |> html_response(200)
 
       assert html =~ "Signed in as"
       assert html =~ user.username
