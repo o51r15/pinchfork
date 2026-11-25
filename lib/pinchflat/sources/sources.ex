@@ -92,7 +92,7 @@ defmodule Pinchflat.Sources do
     case change_source(%Source{}, attrs, :initial) do
       %Ecto.Changeset{valid?: true} ->
         %Source{}
-        |> maybe_change_source_from_url(attrs)
+        |> maybe_change_source_from_url(attrs, Keyword.get(opts, :source_details))
         |> maybe_change_indexing_frequency()
         |> commit_and_handle_tasks(opts)
 
@@ -165,12 +165,51 @@ defmodule Pinchflat.Sources do
     Source.changeset(source, attrs, validation_stage)
   end
 
+  @doc """
+  Looks up a channel or playlist URL with yt-dlp, without saving anything. Used to preview a
+  source before adding it; the result can be passed to `create_source/2` as
+  `source_details:` so the same lookup isn't run twice.
+
+  Returns {:ok, %{type: :channel | :playlist, id: binary(), name: binary(), url: binary(),
+  details: map()}} | {:error, binary()}
+  """
+  def lookup_source(url) do
+    addl_opts = [skip_sleep_interval: true]
+
+    case MediaCollection.get_source_details(url, [], addl_opts) do
+      {:ok, details} ->
+        type = if details.playlist_id == details.channel_id, do: :channel, else: :playlist
+
+        {:ok,
+         %{
+           type: type,
+           id: if(type == :channel, do: details.channel_id, else: details.playlist_id),
+           name: if(type == :channel, do: details.channel_name, else: details.playlist_name),
+           url: url,
+           details: details
+         }}
+
+      {:error, message, _status} ->
+        {:error, error_text(message)}
+
+      {:error, message} ->
+        {:error, error_text(message)}
+    end
+  end
+
+  defp error_text(message) when is_binary(message), do: String.trim(message)
+  defp error_text(message), do: inspect(message)
+
   # NOTE: When operating in the ideal path, this effectively adds an API call
   # to the source creation/update process. Should be used only when needed.
-  defp maybe_change_source_from_url(%Source{} = source, attrs) do
+  # `prefetched` is a lookup_source/1 result for this exact URL, which skips the call.
+  defp maybe_change_source_from_url(%Source{} = source, attrs, prefetched \\ nil) do
     case change_source(source, attrs) do
-      %Ecto.Changeset{changes: %{original_url: _}} = changeset ->
-        add_source_details_to_changeset(source, changeset)
+      %Ecto.Changeset{changes: %{original_url: url}} = changeset ->
+        case prefetched do
+          %{url: ^url, details: details} -> add_source_details_by_collection_type(source, changeset, details)
+          _ -> add_source_details_to_changeset(source, changeset)
+        end
 
       changeset ->
         changeset

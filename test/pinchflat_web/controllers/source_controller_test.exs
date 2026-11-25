@@ -41,29 +41,6 @@ defmodule PinchflatWeb.SourceControllerTest do
     end
   end
 
-  describe "new source" do
-    test "renders form", %{conn: conn} do
-      conn = get(conn, ~p"/sources/new")
-      assert html_response(conn, 200) =~ "New Source"
-    end
-
-    test "renders correct layout when onboarding", %{conn: conn} do
-      Settings.set(onboarding: true)
-      conn = get(conn, ~p"/sources/new")
-
-      refute html_response(conn, 200) =~ "MENU"
-    end
-
-    test "preloads some attributes when using a template", %{conn: conn} do
-      source = source_fixture(custom_name: "My first source", download_cutoff_date: "2021-01-01")
-
-      conn = get(conn, ~p"/sources/new", %{"template_id" => source.id})
-      assert html_response(conn, 200) =~ "New Source"
-      assert html_response(conn, 200) =~ "2021-01-01"
-      refute html_response(conn, 200) =~ source.custom_name
-    end
-  end
-
   describe "create source" do
     test "redirects to show when data is valid", %{conn: conn, create_attrs: create_attrs} do
       expect(YtDlpRunnerMock, :run, 1, &runner_function_mock/5)

@@ -91,6 +91,19 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("11-source-show", conn |> get(~p"/sources/#{source}") |> html_response(200))
       snapshot("12-source-new", conn |> get(~p"/sources/new") |> html_response(200))
 
+      stub(YtDlpRunnerMock, :run, fn _, :get_source_details, _, _, _ ->
+        {:ok, ~s({"channel": "Pavlos Kapralos", "channel_id": "UCzgAonk4-uVhXXjKSF-Nz1A", "playlist_id": "UCzgAonk4-uVhXXjKSF-Nz1A"})}
+      end)
+
+      snapshot_live("12b-source-new-found", conn, ~p"/sources/new", fn view ->
+        view
+        |> form("#source-form", source: %{url: "https://www.youtube.com/@pavloskapralos", mode: "date"})
+        |> render_change()
+
+        render_async(view)
+        view |> element("button", "Last year") |> render_click()
+      end)
+
       for page <- ~w(downloads notifications feeds discovery general) do
         snapshot("22-settings-#{page}", conn |> get("/settings/#{page}") |> html_response(200))
       end

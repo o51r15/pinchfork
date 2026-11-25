@@ -122,35 +122,8 @@ defmodule PinchflatWeb.Sources.SourceController do
     end
   end
 
-  def new(conn, params) do
-    # This lets me preload the settings from another source for more efficient creation
-    cs_struct =
-      case to_string(params["template_id"]) do
-        "" -> %Source{}
-        template_id -> Repo.get(Source, template_id) || %Source{}
-      end
-
-    render(conn, :new,
-      media_profiles: media_profiles(),
-      layout: get_onboarding_layout(),
-      # Most of these don't actually _need_ to be nullified at this point,
-      # but if I don't do it now I know it'll bite me
-      changeset:
-        Sources.change_source(%Source{
-          cs_struct
-          | id: nil,
-            uuid: nil,
-            custom_name: params["prefill_name"],
-            description: nil,
-            collection_name: nil,
-            collection_id: nil,
-            collection_type: params["prefill_type"],
-            original_url: params["prefill_url"],
-            marked_for_deletion_at: nil
-        })
-    )
-  end
-
+  # Adding a source happens in SourceNewLive (/sources/new). This POST endpoint stays for
+  # anything that still submits the old form.
   def create(conn, %{"source" => source_params}) do
     case Sources.create_source(source_params) do
       {:ok, source} ->
