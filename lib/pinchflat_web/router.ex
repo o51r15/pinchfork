@@ -69,6 +69,7 @@ defmodule PinchflatWeb.Router do
       live "/setup/:step", Setup.SetupLive, :show
       live "/discovery", Discovery.DiscoveryLive, :index
       live "/sources", Sources.SourceIndexLive, :index
+      live "/settings/:page", Settings.SettingsLive, :show
     end
 
     resources "/media_profiles", MediaProfiles.MediaProfileController

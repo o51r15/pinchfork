@@ -56,7 +56,8 @@
         matches={["/settings", "/media_profiles"]}
       >
         <:item text="Media Profiles" href={~p"/media_profiles"} match="/media_profiles" />
-        <:item text="General" href={~p"/settings"} match="/settings" />
+        <:item text="YouTube Access" href={~p"/settings/youtube"} match="/settings/youtube" />
+        <:item text="General" href={~p"/settings"} match="/settings" exact />
       </.nav_group>
       <.nav_group icon="hero-server-stack" text="System" current_path={@current_path} matches={["/system", "/stats"]}>
         <:item text="Status" href={~p"/system/status"} match="/system/status" />

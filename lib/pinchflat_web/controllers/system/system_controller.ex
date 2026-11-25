@@ -5,6 +5,7 @@ defmodule PinchflatWeb.System.SystemController do
 
   alias Pinchflat.Repo
   alias Pinchflat.Settings
+  alias Pinchflat.YtDlp.PoTokenServer
 
   def status(conn, _params) do
     about = %{
@@ -43,18 +44,7 @@ defmodule PinchflatWeb.System.SystemController do
       |> Repo.all()
       |> Map.new()
 
-    # bgutil-provider is on the same Docker network at port 4416.
-    # Use curl rather than :httpc — Erlang's DNS resolver doesn't pick up
-    # Docker's embedded DNS, but system processes (including curl) do.
-    po_token_status =
-      case System.cmd(
-             "curl",
-             ["-s", "-o", "/dev/null", "-w", "%{http_code}", "--max-time", "3", "http://bgutil-provider:4416"],
-             stderr_to_stdout: true
-           ) do
-        {code, 0} when code != "" -> :up
-        _ -> :down
-      end
+    po_token_status = PoTokenServer.status()
 
     diagnostic_info =
       """
@@ -79,39 +69,10 @@ defmodule PinchflatWeb.System.SystemController do
   end
 
   def test_po_token(conn, _params) do
-    # Use curl — same reason as the health check above (:httpc can't resolve Docker DNS).
-    # Empty JSON body {} tells bgutil to generate its own visitor_data and return a real token.
     {flash_type, flash_msg} =
-      case System.cmd(
-             "curl",
-             [
-               "-s",
-               "-X",
-               "POST",
-               "-H",
-               "Content-Type: application/json",
-               "-d",
-               "{}",
-               "--max-time",
-               "30",
-               "http://bgutil-provider:4416/get_pot"
-             ],
-             stderr_to_stdout: true
-           ) do
-        {output, 0} ->
-          case Jason.decode(output) do
-            {:ok, %{"poToken" => token}} when is_binary(token) and byte_size(token) > 0 ->
-              {:info, "Token received: #{String.slice(token, 0, 40)}…"}
-
-            {:ok, resp} ->
-              {:error, "Server responded but no token found. Response: #{inspect(resp)}"}
-
-            {:error, _} ->
-              {:error, "Server responded but output was not valid JSON: #{String.slice(output, 0, 200)}"}
-          end
-
-        {output, exit_code} ->
-          {:error, "curl failed (exit #{exit_code}): #{String.slice(output, 0, 200)}"}
+      case PoTokenServer.fetch_token() do
+        {:ok, preview} -> {:info, "Token received: #{preview}"}
+        {:error, message} -> {:error, message}
       end
 
     conn

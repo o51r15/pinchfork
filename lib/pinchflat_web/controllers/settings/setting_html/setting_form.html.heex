@@ -13,11 +13,9 @@
           </.link>
         </div>
 
-        {live_render(
-          @conn,
-          Pinchflat.Settings.YoutubeApiKeyLive,
-          session: %{"value" => f[:youtube_api_key].value}
-        )}
+        <p class="mb-4 text-sm text-muted">
+          The YouTube API key has moved to <.link href={~p"/settings/youtube"} class="text-accent hover:underline">Settings › YouTube Access</.link>.
+        </p>
 
         <.input
           field={f[:extractor_sleep_interval_seconds]}

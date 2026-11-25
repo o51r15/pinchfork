@@ -18,12 +18,6 @@ defmodule PinchflatWeb.Settings.SettingHTML do
     ~s(Server endpoint for Apprise notifications when new media is found. See <a href="#{url}" class="#{help_link_classes()}" target="_blank">Apprise docs</a> for more information)
   end
 
-  def youtube_api_help do
-    url = "https://github.com/kieraneglin/pinchflat/wiki/Generating-a-YouTube-API-key"
-
-    ~s(API key for YouTube Data API v3. Greatly improves the accuracy of Fast Indexing. See <a href="#{url}" class="#{help_link_classes()}" target="_blank">here</a> for details on generating an API key)
-  end
-
   def diagnostic_info_string do
     """
     - App Version: #{Application.spec(:pinchflat)[:vsn]}

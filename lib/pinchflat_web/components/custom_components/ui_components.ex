@@ -124,6 +124,45 @@ defmodule PinchflatWeb.CustomComponents.UiComponents do
   end
 
   @doc """
+  The Sonarr-style "unsaved changes" bar for settings pages. It sits at the bottom of the page
+  and only shows when something has changed. The buttons target a form by id, so the bar can
+  live outside the form it saves.
+  """
+  attr :form, :string, required: true, doc: "id of the form to submit"
+  attr :dirty, :boolean, required: true
+  attr :discard_event, :string, default: "discard"
+
+  def save_bar(assigns) do
+    ~H"""
+    <div class="pointer-events-none sticky bottom-4 z-10 mt-6 flex justify-center" aria-live="polite">
+      <div
+        :if={@dirty}
+        id={"#{@form}-save-bar"}
+        class="pointer-events-auto flex w-full max-w-2xl items-center gap-3 rounded-xl border border-line bg-surface-3/95 px-4 py-3 shadow-lg backdrop-blur"
+      >
+        <CoreComponents.icon name="hero-pencil-square" class="h-5 w-5 shrink-0 text-accent" />
+        <span class="flex-1 text-sm font-medium text-fg">You have unsaved changes</span>
+        <button
+          type="button"
+          phx-click={@discard_event}
+          class="inline-flex h-9 items-center rounded-lg px-3 text-sm font-semibold text-muted hover:bg-surface-2 hover:text-fg"
+        >
+          Discard
+        </button>
+        <button
+          type="submit"
+          form={@form}
+          phx-disable-with="Saving…"
+          class="inline-flex h-9 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-onaccent hover:opacity-90"
+        >
+          Save changes
+        </button>
+      </div>
+    </div>
+    """
+  end
+
+  @doc """
   A small status pill. `kind` picks the color.
   """
   attr :kind, :atom, default: :neutral, values: [:ok, :accent, :warn, :bad, :neutral, :info]

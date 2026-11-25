@@ -6,6 +6,8 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
   use PinchflatWeb.ConnCase
 
+  import Phoenix.LiveViewTest
+
   import Pinchflat.MediaFixtures
   import Pinchflat.SourcesFixtures
   import Pinchflat.ProfilesFixtures
@@ -79,6 +81,10 @@ defmodule PinchflatWeb.PageSnapshotTest do
 
     test "pages", %{conn: conn, source: source, profile: profile} do
       snapshot("18-media-profile-show", conn |> get(~p"/media_profiles/#{profile}") |> html_response(200))
+      snapshot("20-settings-youtube", conn |> get(~p"/settings/youtube") |> html_response(200))
+      snapshot_live("21-settings-youtube-edited", conn, ~p"/settings/youtube", fn view ->
+        view |> form("#settings-form", setting: %{youtube_api_key: "AIzaSyD-example-key"}) |> render_change()
+      end)
 
       snapshot("10-sources", conn |> get(~p"/sources") |> html_response(200))
       snapshot("11-source-show", conn |> get(~p"/sources/#{source}") |> html_response(200))
@@ -89,6 +95,18 @@ defmodule PinchflatWeb.PageSnapshotTest do
       snapshot("16-activity", conn |> get(~p"/activity") |> html_response(200))
       snapshot("17-stats", conn |> get(~p"/stats") |> html_response(200))
     end
+  end
+
+  # Drives a LiveView into some state, then puts its live render into the page's static shell
+  # (which carries the <head> and stylesheet) so the result can be screenshotted.
+  defp snapshot_live(name, conn, path, interact) do
+    shell = conn |> get(path) |> html_response(200)
+    {:ok, view, _html} = live(conn, path)
+    interact.(view)
+    render_async(view, 10_000)
+    body = render(view)
+
+    snapshot(name, Regex.replace(~r{(<body[^>]*>).*(</body>)}s, shell, fn _, open, close -> open <> body <> close end))
   end
 
   defp snapshot(name, html) do

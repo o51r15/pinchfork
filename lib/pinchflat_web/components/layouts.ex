@@ -89,6 +89,7 @@ defmodule PinchflatWeb.Layouts do
     attr :text, :string
     attr :href, :any
     attr :match, :string
+    attr :exact, :boolean, doc: "only active on exactly this path, not on paths below it"
   end
 
   def nav_group(assigns) do
@@ -108,7 +109,7 @@ defmodule PinchflatWeb.Layouts do
             href={item[:href]}
             class={[
               "block rounded-md px-3 py-1.5 text-sm transition-colors",
-              if(active?(@current_path, item[:match]),
+              if(item_active?(@current_path, item),
                 do: "font-semibold text-accent",
                 else: "text-muted hover:bg-surface-2 hover:text-fg"
               )
@@ -121,6 +122,9 @@ defmodule PinchflatWeb.Layouts do
     </li>
     """
   end
+
+  defp item_active?(current_path, %{exact: true, match: match}), do: current_path == match
+  defp item_active?(current_path, item), do: active?(current_path, item[:match])
 
   defp active?(nil, _), do: false
   defp active?(_, nil), do: false
