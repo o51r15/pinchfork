@@ -16,7 +16,7 @@ defmodule PinchflatWeb.System.BackupLiveTest do
       Application.get_env(
         :pinchflat,
         :fake_restore_result,
-        {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz"}}
+        {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz", warning: nil}}
       )
     end
   end
@@ -93,15 +93,38 @@ defmodule PinchflatWeb.System.BackupLiveTest do
       assert has_element?(view, "#restore-form button[disabled]")
     end
 
-    test "restoring shows it worked and names the safety backup", %{conn: conn, dir: dir} do
+    test "restoring moves to the restarting page with what happened", %{conn: conn, dir: dir} do
       name = backup(dir, "pinchfork-backup-a.sql.gz")
       {:ok, view, _html} = live(conn, ~p"/system/backup/#{name}/restore")
       render_async(view)
 
       view |> form("#restore-form", confirm: "RESTORE") |> render_submit()
-      html = render_async(view)
 
-      assert html =~ "Restored from #{name}"
+      {path, _flash} = assert_redirect(view, 1_000)
+      assert path =~ "/system/restarting?"
+      assert path =~ "restored=#{name}"
+      assert path =~ "safety=pinchfork-backup-safety.sql.gz"
+    end
+
+    test "the restarting page waits, then goes to the Backup page with the details", %{conn: conn} do
+      html =
+        conn
+        |> get(~p"/system/restarting?restored=pinchfork-backup-a.sql.gz&safety=pinchfork-backup-safety.sql.gz&warning=")
+        |> html_response(200)
+
+      assert html =~ "Pinchfork is restarting"
+      assert html =~ "/system/backup?restored=pinchfork-backup-a.sql.gz"
+      assert html =~ "/healthcheck"
+    end
+
+    test "the Backup page notes a restore and the safety backup", %{conn: conn} do
+      html =
+        conn
+        |> get(~p"/system/backup?restored=pinchfork-backup-a.sql.gz&safety=pinchfork-backup-safety.sql.gz&warning=")
+        |> html_response(200)
+
+      assert html =~ ~s(id="restored-note")
+      assert html =~ "Restored from pinchfork-backup-a.sql.gz"
       assert html =~ "pinchfork-backup-safety.sql.gz"
     end
 

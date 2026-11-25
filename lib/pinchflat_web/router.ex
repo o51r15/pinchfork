@@ -89,6 +89,7 @@ defmodule PinchflatWeb.Router do
     post "/system/test_po_token", System.SystemController, :test_po_token
     get "/system/logs", Settings.SettingController, :download_logs
     get "/system/backup", System.SystemController, :backup
+    get "/system/restarting", System.SystemController, :restarting
     post "/system/backup", System.SystemController, :create_backup
     get "/system/backup/:filename/download", System.SystemController, :download_backup
     delete "/system/backup/:filename", System.SystemController, :delete_backup

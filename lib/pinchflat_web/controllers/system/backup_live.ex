@@ -112,8 +112,13 @@ defmodule PinchflatWeb.System.BackupLive do
   def handle_async(:inspect, {:exit, _}, socket),
     do: {:noreply, assign(socket, inspected: {:error, "The backup couldn't be read."})}
 
-  def handle_async(:restore, {:ok, {:ok, info}}, socket),
-    do: {:noreply, assign(socket, phase: :done, result: {:ok, info})}
+  # Pinchfork restarts a few seconds after a restore, so the browser moves to a plain page that
+  # waits for it to come back; this LiveView would otherwise reconnect into its confirm form
+  def handle_async(:restore, {:ok, {:ok, info}}, socket) do
+    query = [restored: socket.assigns.filename, safety: info.safety_backup, warning: info[:warning] || ""]
+
+    {:noreply, socket |> assign(phase: :done, result: {:ok, info}) |> redirect(to: ~p"/system/restarting?#{query}")}
+  end
 
   def handle_async(:restore, {:ok, {:error, message}}, socket),
     do: {:noreply, assign(socket, phase: :failed, result: {:error, message})}
@@ -270,6 +275,7 @@ defmodule PinchflatWeb.System.BackupLive do
           <li>
             The database is replaced in one step. If anything goes wrong, nothing changes.
           </li>
+          <li>Pinchfork restarts to finish up. It takes about half a minute; the page waits for it.</li>
           <li>
             Your sign-in comes from the backup too, so you may need to sign in again, with the password you had then.
           </li>
@@ -325,20 +331,7 @@ defmodule PinchflatWeb.System.BackupLive do
 
       <div :if={@phase == :done} class="pf-card mt-6 flex gap-3 border-ok/40 px-5 py-4" id="restore-done">
         <.icon name="hero-check-circle" class="mt-0.5 h-5 w-5 shrink-0 text-ok" />
-        <div class="min-w-0 text-sm text-fg">
-          <p class="font-semibold">Restored from {@filename}</p>
-          <p class="mt-1 text-muted">
-            What was there before is saved as
-            <span class="font-mono text-xs text-fg">{elem(@result, 1).safety_backup}</span>
-            on the Backup page, if you want to go back.
-          </p>
-          <a
-            href="/"
-            class="mt-3 inline-flex h-9 items-center rounded-lg bg-accent px-4 text-sm font-semibold text-onaccent hover:opacity-90"
-          >
-            Open Pinchfork
-          </a>
-        </div>
+        <p class="text-sm text-fg">Restored. Pinchfork is restarting…</p>
       </div>
     </div>
     """

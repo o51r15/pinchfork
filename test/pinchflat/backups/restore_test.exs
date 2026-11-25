@@ -61,6 +61,7 @@ defmodule Pinchflat.Backups.RestoreTest do
           send(test_pid, :finished)
           :ok
         end),
+      restart: fn -> send(test_pid, :restarted) end,
       wait_ms: 0
     ]
   end
@@ -107,7 +108,8 @@ defmodule Pinchflat.Backups.RestoreTest do
       contents = dump(20_250_101_000_000)
       path = write_gz(dir, "a.sql.gz", contents)
 
-      assert {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz"}} = Restore.restore(path, fakes(self()))
+      assert {:ok, %{safety_backup: "pinchfork-backup-safety.sql.gz", warning: nil}} =
+               Restore.restore(path, fakes(self()))
 
       received = messages()
       assert Enum.filter(received, &match?({:step, _}, &1)) == Enum.map(Keyword.keys(Restore.steps()), &{:step, &1})
@@ -118,9 +120,10 @@ defmodule Pinchflat.Backups.RestoreTest do
       assert loaded == contents
       assert %{host: "db.example", port: 5433, user: "pinchflat", db: "pinchflat"} = db
 
-      # Safety backup before pausing, pausing before loading, resuming last
+      # Safety backup before pausing, pausing before loading, then a restart instead of resuming:
+      # jobs must not run on connections that still know the old tables
       order = Enum.reject(received, &match?({:step, _}, &1)) |> Enum.map(&if(is_tuple(&1), do: elem(&1, 0), else: &1))
-      assert order == [:safety_backup, :paused, :ran, :finished, :resumed]
+      assert order == [:safety_backup, :paused, :ran, :finished, :restarted]
     end
 
     test "a failed load says nothing changed and still resumes jobs", %{dir: dir} do
@@ -132,6 +135,7 @@ defmodule Pinchflat.Backups.RestoreTest do
       assert message =~ "syntax error"
       assert_received :resumed
       refute_received :finished
+      refute_received :restarted
     end
 
     test "won't restore a backup from a newer version", %{dir: dir} do
@@ -164,12 +168,15 @@ defmodule Pinchflat.Backups.RestoreTest do
       refute_received {:ran, _, _}
     end
 
-    test "when finishing fails, says the backup was restored and how to go back", %{dir: dir} do
+    test "when finishing fails it's still restored, with a warning saying how to go back", %{dir: dir} do
       path = write_gz(dir, "a.sql.gz", dump(20_250_101_000_000))
       opts = fakes(self(), finish: fn -> {:error, "Updating the database for this version failed: boom."} end)
 
-      assert {:error, message} = Restore.restore(path, opts)
-      assert message =~ "The backup was restored. To go back, restore pinchfork-backup-safety.sql.gz."
+      assert {:ok, %{warning: warning}} = Restore.restore(path, opts)
+      assert warning =~ "boom."
+      assert warning =~ "The backup was restored. To go back, restore pinchfork-backup-safety.sql.gz."
+      assert_received :restarted
+      refute_received :resumed
     end
 
     test "only one restore at a time", %{dir: dir} do

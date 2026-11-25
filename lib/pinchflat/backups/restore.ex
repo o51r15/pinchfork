@@ -12,9 +12,14 @@ defmodule Pinchflat.Backups.Restore do
     4. Pause background jobs and wait for running ones to finish.
     5. In ONE transaction: drop and recreate the public schema, then load the dump. Postgres
        DDL is transactional, so if anything fails the database is exactly as it was.
-    6. Run any migrations newer than the backup, reconnect (cached statements point at the
-       old tables), resume background jobs.
+    6. Run any migrations newer than the backup.
+    7. Restart Pinchfork's runtime (`:init.restart/0`; the container keeps running). Reloading
+       recreates tables and types with new internal ids, and Postgrex caches type ids for the
+       life of the runtime, so without a restart Oban keeps failing with "cache lookup failed
+       for type" (seen on the test stack: once a minute until restarted). Jobs stay paused
+       until then, so nothing runs on a stale connection.
 
+  If the load fails nothing changed: jobs resume and there's no restart.
   Only one restore runs at a time.
   """
 
@@ -35,8 +40,10 @@ defmodule Pinchflat.Backups.Restore do
     pausing: "Pausing background jobs",
     restoring: "Restoring",
     updating: "Updating the database for this version",
-    resuming: "Reconnecting and resuming"
+    restarting: "Restarting Pinchfork"
   ]
+
+  @restart_delay_ms 3_000
 
   @doc "The steps of a restore, in order, as [{step, label}]."
   def steps, do: @steps
@@ -101,12 +108,14 @@ defmodule Pinchflat.Backups.Restore do
     * `:jobs` - `{pause_fun, resume_fun, running_count_fun}`, for tests
     * `:runner` - `fn sql_paths, db_config -> {output, exit_status} end` that runs psql, for tests
     * `:safety_backup` - `fn -> {:ok, filename} | {:error, reason} end`, for tests
-    * `:finish` - `fn -> :ok | {:error, message} end` run after loading (migrate and reconnect), for tests
+    * `:finish` - `fn -> :ok | {:error, message} end` run after loading (migrations), for tests
+    * `:restart` - `fn -> any end` that restarts Pinchfork after a restore, for tests
     * `:wait_ms` - how long to wait for running jobs (default 30 seconds)
 
-  Returns {:ok, %{safety_backup: filename}} | {:error, String.t()}
-  On error nothing in the database has changed, except when `:finish` fails after loading,
-  which the message says.
+  Returns
+    * {:ok, %{safety_backup: filename, warning: nil | message}} - restored; Pinchfork restarts
+      in a few seconds. `warning` is set when something after loading failed (migrations).
+    * {:error, message} - nothing in the database changed
   """
   def restore(path, opts \\ []) do
     # :global locks only exclude *different* requesters, so the requester must be this process
@@ -128,7 +137,8 @@ defmodule Pinchflat.Backups.Restore do
     {pause, resume, running} = Keyword.get(opts, :jobs, {&pause_jobs/0, &resume_jobs/0, &running_jobs/0})
     runner = Keyword.get(opts, :runner, &run_psql/2)
     safety_backup = Keyword.get(opts, :safety_backup, &Backups.create_backup/0)
-    finish = Keyword.get(opts, :finish, &migrate_and_reconnect/0)
+    finish = Keyword.get(opts, :finish, &migrate/0)
+    restart = Keyword.get(opts, :restart, &schedule_restart/0)
     wait_ms = Keyword.get(opts, :wait_ms, @wait_for_jobs_ms)
 
     tmp_dir = Path.join(System.tmp_dir!(), "pinchfork-restore-#{System.unique_integer([:positive])}")
@@ -146,18 +156,20 @@ defmodule Pinchflat.Backups.Restore do
         notify.(:pausing)
         pause.()
 
-        try do
-          with :ok <- wait_for_jobs(running, wait_ms),
-               :ok <- notify_step(notify, :restoring),
-               :ok <- load(runner, sql_paths, db),
-               :ok <- notify_step(notify, :updating),
-               :ok <- finished(finish, safety) do
-            notify.(:resuming)
-            Logger.info("Restored the database from #{Path.basename(path)} (safety backup: #{safety})")
-            {:ok, %{safety_backup: safety}}
-          end
-        after
-          resume.()
+        case wait_and_load(running, wait_ms, notify, runner, sql_paths, db) do
+          :ok ->
+            # The database is replaced from here on. Jobs stay paused: the restart starts them
+            # again on fresh connections.
+            notify.(:updating)
+            warning = finished(finish, safety)
+            notify.(:restarting)
+            Logger.info("Restored the database from #{Path.basename(path)} (safety backup: #{safety}). Restarting.")
+            restart.()
+            {:ok, %{safety_backup: safety, warning: warning}}
+
+          {:error, _} = error ->
+            resume.()
+            error
         end
       end
     after
@@ -209,13 +221,20 @@ defmodule Pinchflat.Backups.Restore do
     end
   end
 
+  # Anything that raises before the load finishes leaves the database untouched, so jobs resume
+  defp wait_and_load(running, wait_ms, notify, runner, sql_paths, db) do
+    with :ok <- wait_for_jobs(running, wait_ms),
+         :ok <- notify_step(notify, :restoring) do
+      load(runner, sql_paths, db)
+    end
+  rescue
+    e -> {:error, "The restore stopped before changing anything: #{Exception.message(e)}"}
+  end
+
   defp finished(finish, safety) do
     case finish.() do
-      :ok ->
-        :ok
-
-      {:error, message} ->
-        {:error, "#{message} The backup was restored. To go back, restore #{safety}."}
+      :ok -> nil
+      {:error, message} -> "#{message} The backup was restored. To go back, restore #{safety}."
     end
   end
 
@@ -245,16 +264,21 @@ defmodule Pinchflat.Backups.Restore do
     )
   end
 
-  # Brings an older backup up to this version, then drops pooled connections: their cached
-  # statements point at the tables that were just replaced
-  defp migrate_and_reconnect do
+  # Brings an older backup up to this version
+  defp migrate do
     Ecto.Migrator.run(Repo, :up, all: true, log: false)
-    Ecto.Adapters.SQL.disconnect_all(Repo, 0)
     :ok
   rescue
-    e ->
-      Ecto.Adapters.SQL.disconnect_all(Repo, 0)
-      {:error, "Updating the database for this version failed: #{Exception.message(e)}."}
+    e -> {:error, "Updating the database for this version failed: #{Exception.message(e)}."}
+  end
+
+  # A few seconds' grace so the page can move to the "restarting" screen first. Unlinked, so it
+  # outlives whatever asked for it.
+  defp schedule_restart do
+    spawn(fn ->
+      Process.sleep(@restart_delay_ms)
+      :init.restart()
+    end)
   end
 
   defp pause_jobs, do: Oban.pause_all_queues(Oban)

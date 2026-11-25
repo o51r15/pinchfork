@@ -115,8 +115,9 @@ defmodule PinchflatWeb.System.SystemController do
     |> redirect(to: ~p"/system/status")
   end
 
-  def backup(conn, _params) do
+  def backup(conn, params) do
     render(conn, :backup,
+      restored: restored_note(params),
       backups: Backups.list_backups(),
       backup_dir: Backups.backup_dir(),
       max_backups: Backups.max_backups(),
@@ -125,6 +126,25 @@ defmodule PinchflatWeb.System.SystemController do
       page_title: "Backup"
     )
   end
+
+  # Shown after a restore: BackupLive sends the browser here, Pinchfork restarts, then this
+  # page sends it on to the Backup page with the same details
+  def restarting(conn, params) do
+    note = restored_note(params) || %{restored: "", safety: "", warning: ""}
+    target = ~p"/system/backup?#{[restored: note.restored, safety: note.safety, warning: note.warning]}"
+
+    render(conn, :restarting, target: target, warning: note.warning, page_title: "Restarting")
+  end
+
+  defp restored_note(%{"restored" => restored} = params) when restored != "" do
+    %{
+      restored: Path.basename(restored),
+      safety: Path.basename(params["safety"] || ""),
+      warning: params["warning"] || ""
+    }
+  end
+
+  defp restored_note(_params), do: nil
 
   def create_backup(conn, _params) do
     case Backups.directory_status() do

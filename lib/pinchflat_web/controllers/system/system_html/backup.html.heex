@@ -32,6 +32,18 @@
     </:actions>
   </.page_header>
 
+  <%!-- After a restore --%>
+  <div :if={@restored} class="pf-card mb-6 flex gap-3 border-ok/40 px-5 py-4" id="restored-note">
+    <.icon name="hero-check-circle" class="mt-0.5 h-5 w-5 shrink-0 text-ok" />
+    <div class="min-w-0 text-sm text-fg">
+      <p class="font-semibold">Restored from {@restored.restored}</p>
+      <p :if={@restored.safety != ""} class="mt-1 text-muted">
+        What was there before is saved as <span class="font-mono text-xs text-fg">{@restored.safety}</span>, in the list below, if you want to go back.
+      </p>
+      <p :if={@restored.warning != ""} class="mt-1 text-warn">{@restored.warning}</p>
+    </div>
+  </div>
+
   <%!-- Where backups go, and whether that's safe --%>
   <div
     :if={@dir_status != :ok or @mounted == false}
