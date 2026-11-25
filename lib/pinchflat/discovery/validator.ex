@@ -90,7 +90,10 @@ defmodule Pinchflat.Discovery.Validator do
       playlist_end: 1
     ]
 
-    output_template = "%(.{channel_id,channel,channel_follower_count,channel_url,playlist_count,upload_date})j"
+    # Printed once for the channel (playlist level), so the channel's pictures (thumbnails) are
+    # there; the newest video's upload date comes from its first entry.
+    output_template =
+      "playlist:%(.{channel_id,channel,channel_follower_count,channel_url,playlist_count,entries.0.upload_date,thumbnails})j"
 
     case runner.run(url, :discovery_enrich, command_opts, output_template, skip_sleep_interval: true) do
       {:ok, output} ->
@@ -117,8 +120,8 @@ defmodule Pinchflat.Discovery.Validator do
             url: data["channel_url"] || "https://www.youtube.com/channel/#{data["channel_id"]}",
             subscriber_count: data["channel_follower_count"],
             video_count: data["playlist_count"],
-            last_upload_at: parse_upload_date(data["upload_date"]),
-            thumbnail_url: nil
+            last_upload_at: parse_upload_date(data["entries.0.upload_date"] || data["upload_date"]),
+            thumbnail_url: avatar_url(data["thumbnails"])
           })
 
         if enriched.channel_id do
@@ -131,6 +134,21 @@ defmodule Pinchflat.Discovery.Validator do
         {:error, "Failed to parse JSON: #{String.slice(line, 0, 200)}"}
     end
   end
+
+  # The channel picture: the square avatar (not the uncropped one or a banner), asked for at a
+  # small size. yt3.googleusercontent.com URLs carry the size as =s<pixels>.
+  @doc false
+  def avatar_url(thumbnails) when is_list(thumbnails) do
+    thumbnails
+    |> Enum.filter(fn t -> is_binary(t["url"]) and t["width"] != nil and t["width"] == t["height"] end)
+    |> Enum.max_by(& &1["width"], fn -> nil end)
+    |> case do
+      nil -> nil
+      %{"url" => url} -> String.replace(url, ~r/=s\d+(?=-|$)/, "=s176")
+    end
+  end
+
+  def avatar_url(_), do: nil
 
   defp parse_upload_date(nil), do: nil
 

@@ -34,6 +34,34 @@ defmodule PinchflatWeb.Discovery.DiscoveryLiveTest do
     suggestion
   end
 
+  test "shows the channel picture over the initials, or just the initials", %{conn: conn} do
+    with_pic =
+      suggestion(%{name: "Fall of Civilizations", thumbnail_url: "https://yt3.googleusercontent.com/abc=s176-c"})
+
+    without = suggestion(%{name: "Tom Scott"})
+
+    {:ok, view, _html} = live(conn, ~p"/discovery")
+
+    assert has_element?(view, ~s(#avatar-#{with_pic.id} img[src="https://yt3.googleusercontent.com/abc=s176-c"]))
+    assert view |> element("#avatar-#{with_pic.id}") |> render() =~ "FC"
+    refute has_element?(view, "#avatar-#{without.id} img")
+    assert view |> element("#avatar-#{without.id}") |> render() =~ "TS"
+  end
+
+  test "avatar_url picks the square avatar at a small size" do
+    thumbnails = [
+      %{"url" => "https://yt3.googleusercontent.com/banner=w1060", "width" => 1060, "height" => 175},
+      %{"url" => "https://yt3.googleusercontent.com/x=s900-c-k-c0x00ffffff-no-rj", "width" => 900, "height" => 900},
+      %{"url" => "https://yt3.googleusercontent.com/x=s0", "id" => "avatar_uncropped"}
+    ]
+
+    assert Pinchflat.Discovery.Validator.avatar_url(thumbnails) ==
+             "https://yt3.googleusercontent.com/x=s176-c-k-c0x00ffffff-no-rj"
+
+    assert Pinchflat.Discovery.Validator.avatar_url(nil) == nil
+    assert Pinchflat.Discovery.Validator.avatar_url([%{"url" => "https://x/y"}]) == nil
+  end
+
   test "says how to turn Discovery on when it's off", %{conn: conn} do
     Settings.set(discovery_enabled: false)
     {:ok, view, html} = live(conn, ~p"/discovery")

@@ -223,8 +223,24 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
             id={"suggestion-#{suggestion.id}"}
           >
             <div class="flex items-start gap-3">
-              <span class="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-accent-soft text-sm font-semibold text-accent">
+              <%!-- The channel picture loads straight from YouTube. The initials sit underneath and
+                   show whenever there's no picture or it fails to load (the image hides itself). --%>
+              <span
+                class="relative grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-full bg-accent-soft text-sm font-semibold text-accent"
+                id={"avatar-#{suggestion.id}"}
+              >
                 {initials(suggestion.name || suggestion.channel_id)}
+                <img
+                  :if={suggestion.thumbnail_url}
+                  src={suggestion.thumbnail_url}
+                  alt=""
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                  class="absolute inset-0 h-full w-full object-cover"
+                  x-data
+                  x-init="if ($el.complete && $el.naturalWidth === 0) $el.remove()"
+                  x-on:error="$el.remove()"
+                />
               </span>
               <div class="min-w-0 flex-1">
                 <a
