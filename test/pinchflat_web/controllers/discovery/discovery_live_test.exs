@@ -48,6 +48,16 @@ defmodule PinchflatWeb.Discovery.DiscoveryLiveTest do
     assert view |> element("#avatar-#{without.id}") |> render() =~ "TS"
   end
 
+  test "shows the channel's description when there is one", %{conn: conn} do
+    with_desc = suggestion(%{name: "Coach Kolton", description: "Fitness isn't always fit."})
+    without = suggestion(%{name: "Tom Scott"})
+
+    {:ok, view, _html} = live(conn, ~p"/discovery")
+
+    assert view |> element("#description-#{with_desc.id}") |> render() =~ "Fitness isn&#39;t always fit."
+    refute has_element?(view, "#description-#{without.id}")
+  end
+
   test "avatar_url picks the square avatar at a small size" do
     thumbnails = [
       %{"url" => "https://yt3.googleusercontent.com/banner=w1060", "width" => 1060, "height" => 175},

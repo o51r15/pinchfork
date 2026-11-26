@@ -187,7 +187,8 @@ defmodule Pinchflat.Discovery.ScanWorker do
       featured_by_source_ids: featured_ids,
       featured_by_count: MapSet.size(featured_ids),
       score: Map.get(acc, :score, 0) + Map.get(other, :score, 0),
-      name: acc[:name] || other[:name]
+      name: acc[:name] || other[:name],
+      description: acc[:description] || other[:description]
     })
   end
 
@@ -199,7 +200,7 @@ defmodule Pinchflat.Discovery.ScanWorker do
         channel_id: candidate.channel_id,
         url: candidate[:url] || "https://www.youtube.com/channel/#{candidate.channel_id}",
         name: candidate[:name],
-        description: nil,
+        description: candidate[:description],
         thumbnail_url: candidate[:thumbnail_url],
         subscriber_count: candidate[:subscriber_count],
         video_count: candidate[:video_count],

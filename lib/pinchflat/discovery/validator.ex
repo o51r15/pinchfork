@@ -95,7 +95,7 @@ defmodule Pinchflat.Discovery.Validator do
     # channel (newest video = entries.0.entries.0); parse_enrichment/2 merges the lines.
     # No video count: at this level playlist_count counts tabs, not videos.
     output_template =
-      "playlist:%(.{channel_id,channel,channel_follower_count,channel_url,entries.0.upload_date,entries.0.entries.0.upload_date,thumbnails})j"
+      "playlist:%(.{channel_id,channel,channel_follower_count,channel_url,description,entries.0.upload_date,entries.0.entries.0.upload_date,thumbnails})j"
 
     case runner.run(url, :discovery_enrich, command_opts, output_template, skip_sleep_interval: true) do
       {:ok, output} ->
@@ -137,6 +137,7 @@ defmodule Pinchflat.Discovery.Validator do
          Map.merge(candidate, %{
            channel_id: data["channel_id"],
            name: data["channel"],
+           description: clean_description(data["description"]),
            url: data["channel_url"] || "https://www.youtube.com/channel/#{data["channel_id"]}",
            subscriber_count: data["channel_follower_count"],
            video_count: nil,
@@ -160,6 +161,17 @@ defmodule Pinchflat.Discovery.Validator do
   end
 
   def avatar_url(_), do: nil
+
+  # The channel's "About" text, trimmed; empty becomes nil. Kept to a sane length since
+  # the card only shows the start of it.
+  defp clean_description(text) when is_binary(text) do
+    case String.trim(text) do
+      "" -> nil
+      trimmed -> String.slice(trimmed, 0, 2000)
+    end
+  end
+
+  defp clean_description(_), do: nil
 
   defp parse_upload_date(nil), do: nil
 

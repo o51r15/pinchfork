@@ -263,6 +263,18 @@ defmodule PinchflatWeb.Discovery.DiscoveryLive do
               </div>
             </div>
 
+            <%!-- The channel's own About text. Three lines, click to read the rest. --%>
+            <p
+              :if={suggestion.description}
+              id={"description-#{suggestion.id}"}
+              class="line-clamp-3 cursor-pointer break-words text-[13px] leading-5 text-muted"
+              title="Click to show all of it"
+              x-data="{ open: false }"
+              x-on:click="open = !open"
+              x-bind:style="open ? '-webkit-line-clamp: unset; overflow: visible' : ''"
+            >
+              {suggestion.description}
+            </p>
             <p class="text-sm leading-6 text-fg">{reason(suggestion.reason)}</p>
             <div class="flex flex-wrap gap-1.5">
               <.status_chip kind={elem(match(suggestion.score), 1)}>{elem(match(suggestion.score), 0)}</.status_chip>

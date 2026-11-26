@@ -37,6 +37,15 @@ defmodule Pinchflat.Discovery.ValidatorTest do
     assert found.subscriber_count == 5
   end
 
+  test "keeps the channel's description, trimmed; blank becomes nil" do
+    line = Jason.encode!(%{channel_id: "UC4", channel: "Four", description: "  Lifting and coaching.\n"})
+    assert [found] = validate(line)
+    assert found.description == "Lifting and coaching."
+
+    assert [found] = validate(Jason.encode!(%{channel_id: "UC5", channel: "Five", description: "  "}))
+    assert found.description == nil
+  end
+
   test "no picture is fine" do
     assert [found] = validate(Jason.encode!(%{channel_id: "UC3", channel: "Three"}))
     assert found.thumbnail_url == nil
