@@ -214,6 +214,17 @@ defmodule PinchflatWeb.Settings.SettingsLiveTest do
       assert Settings.get!(:video_codec_preference) == "vp9"
     end
 
+    test "warns when the pause between requests is shorter than the recommended 60", %{conn: conn} do
+      Settings.set(extractor_sleep_interval_seconds: 60)
+      {:ok, view, html} = live(conn, ~p"/settings/downloads")
+
+      refute html =~ "short-pause-warning"
+
+      html = view |> form("#settings-form", setting: %{extractor_sleep_interval_seconds: "5"}) |> render_change()
+
+      assert html =~ "short-pause-warning"
+    end
+
     test "saves codecs and plain file names", %{conn: conn} do
       {:ok, view, _html} = live(conn, ~p"/settings/downloads")
       view |> element("#toggle-advanced") |> render_click()

@@ -465,7 +465,7 @@ defmodule PinchflatWeb.Settings.SettingsLive do
         <.settings_row
           label="Pause between requests"
           for="setting_extractor_sleep_interval_seconds"
-          help="Seconds to wait between requests to YouTube. Raise it if you see rate-limit or bot errors. Default: 0."
+          help="Seconds to wait between requests to YouTube, for indexing and downloads. Recommended: 60. Raise it if you see rate-limit or bot errors."
         >
           <div class="flex items-center gap-2">
             <input
@@ -480,6 +480,17 @@ defmodule PinchflatWeb.Settings.SettingsLive do
             />
             <span class="text-sm text-muted">seconds</span>
           </div>
+          <p
+            :if={short_pause?(@form[:extractor_sleep_interval_seconds].value)}
+            id="short-pause-warning"
+            class="mt-2 flex max-w-md gap-2 text-xs leading-5 text-muted"
+          >
+            <.icon name="hero-exclamation-triangle-mini" class="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+            <span>
+              Shorter than the recommended 60 seconds. Indexing big channels gets much faster, but YouTube is more
+              likely to rate-limit or block this server for a while. Your call.
+            </span>
+          </p>
           <.field_errors field={@form[:extractor_sleep_interval_seconds]} />
         </.settings_row>
         <.settings_row
@@ -1388,4 +1399,16 @@ defmodule PinchflatWeb.Settings.SettingsLive do
       true -> Calendar.strftime(time, "%-d %b %Y")
     end
   end
+
+  # The form value is an integer from the database or a string while typing
+  defp short_pause?(value) when is_integer(value), do: value < 60
+
+  defp short_pause?(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {seconds, ""} -> seconds < 60
+      _ -> false
+    end
+  end
+
+  defp short_pause?(_value), do: false
 end

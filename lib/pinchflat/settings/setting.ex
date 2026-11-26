@@ -51,7 +51,8 @@ defmodule Pinchflat.Settings.Setting do
     field :apprise_server, :string
     field :youtube_api_key, :string
     field :route_token, :string
-    field :extractor_sleep_interval_seconds, :integer, default: 0
+    # 60 is the recommended pace; shorter is the user's call (risks rate limiting)
+    field :extractor_sleep_interval_seconds, :integer, default: 60
     # This is a string because it accepts values like "100K" or "4.2M"
     field :download_throughput_limit, :string
     field :restrict_filenames, :boolean, default: false
