@@ -18,6 +18,9 @@ defmodule Pinchflat.Media do
   # Some fields should only be set on insert and not on update.
   @fields_to_drop_on_update [:playlist_index]
 
+  # Prevention a re-index must not undo (see backend_upsert/1)
+  @sticky_prevention_reasons ["manual", "user_script", "permanent_error"]
+
   @doc """
   Returns the list of media_items.
 
@@ -148,14 +151,50 @@ defmodule Pinchflat.Media do
     %MediaItem{}
     |> MediaItem.changeset(attrs)
     |> Repo.insert(
-      on_conflict: [
-        set:
-          attrs
-          |> Map.drop(@fields_to_drop_on_update)
-          |> Map.to_list()
-      ],
+      on_conflict: backend_upsert(attrs),
       conflict_target: [:source_id, :media_id]
     )
+  end
+
+  # Re-indexing updates an existing video with what yt-dlp says now, including the download
+  # policy (prevent_download / download_prevented_reason). But a video turned off by hand or by
+  # a user script, or one that failed for good, keeps that: re-indexing used to switch these
+  # back on (and download them again) whenever it re-scanned recent videos.
+  defp backend_upsert(attrs) do
+    sticky = @sticky_prevention_reasons
+    policy_fields = [:prevent_download, :download_prevented_reason]
+
+    others =
+      attrs
+      |> Map.drop(@fields_to_drop_on_update ++ policy_fields)
+      |> Map.to_list()
+
+    query = from(m in MediaItem, update: [set: ^others])
+
+    if Enum.any?(policy_fields, &Map.has_key?(attrs, &1)) do
+      from(m in query,
+        update: [
+          set: [
+            prevent_download:
+              fragment(
+                "CASE WHEN ? = ANY(?) THEN ? ELSE EXCLUDED.prevent_download END",
+                m.download_prevented_reason,
+                ^sticky,
+                m.prevent_download
+              ),
+            download_prevented_reason:
+              fragment(
+                "CASE WHEN ? = ANY(?) THEN ? ELSE EXCLUDED.download_prevented_reason END",
+                m.download_prevented_reason,
+                ^sticky,
+                m.download_prevented_reason
+              )
+          ]
+        ]
+      )
+    else
+      query
+    end
   end
 
   @doc """

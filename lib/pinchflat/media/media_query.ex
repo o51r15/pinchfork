@@ -152,7 +152,12 @@ defmodule Pinchflat.Media.MediaQuery do
   # Queued for download: staged & waiting, on a source that is enabled and downloading (a
   # source that's unmonitored or switched off never downloads its pending videos).
   def queued do
-    dynamic([mi, source], ^staged_pending() and source.download_media == true and source.enabled == true)
+    dynamic([mi], ^staged_pending() and ^on_downloading_source())
+  end
+
+  # The video's source is enabled and monitored (downloads its videos)
+  def on_downloading_source do
+    dynamic([mi, source], source.download_media == true and source.enabled == true)
   end
 
   # Failing but will retry: a transient error, not yet downloaded, not download-prevented.

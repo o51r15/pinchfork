@@ -103,15 +103,27 @@ defmodule Pinchflat.Pages.HistoryTableLive do
             </button>
           </:col>
           <:col :let={media_item} :if={@media_state == "failed"} label="">
-            <button
-              type="button"
-              phx-click="force_retry"
-              phx-value-id={media_item.id}
-              data-confirm="Forget the earlier errors and download this video again from scratch?"
-              class={small_button()}
-            >
-              Try again
-            </button>
+            <div class="flex items-center justify-end gap-2">
+              <button
+                type="button"
+                phx-click="force_retry"
+                phx-value-id={media_item.id}
+                data-confirm="Forget the earlier errors and download this video again from scratch?"
+                class={small_button()}
+              >
+                Try again
+              </button>
+              <button
+                type="button"
+                phx-click="dismiss"
+                phx-value-id={media_item.id}
+                class={small_button()}
+                id={"dismiss-#{media_item.id}"}
+                title="Stop listing this failure. The video is turned off and won't be tried again; turn it back on from its page."
+              >
+                Dismiss
+              </button>
+            </div>
           </:col>
         </.table>
       </div>
@@ -167,6 +179,22 @@ defmodule Pinchflat.Pages.HistoryTableLive do
     case Repo.get(Pinchflat.Media.MediaItem, id) do
       nil -> :noop
       media_item -> DownloadingHelpers.retry_now(media_item)
+    end
+
+    new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.sort_attr, assigns.sort_dir)
+
+    {:noreply, assign(socket, new_assigns)}
+  end
+
+  # Dismiss a failure: the video is turned off by hand (so it leaves Failed and isn't tried
+  # again) and keeps its last error for the video page. Turning it back on clears both.
+  def handle_event("dismiss", %{"id" => id}, %{assigns: assigns} = socket) do
+    with %{} = media_item <- Repo.get(Pinchflat.Media.MediaItem, id) do
+      Pinchflat.Media.update_media_item(media_item, %{
+        prevent_download: true,
+        download_prevented_reason: "manual",
+        error_type: nil
+      })
     end
 
     new_assigns = fetch_pagination_attributes(assigns.base_query, assigns.page, assigns.sort_attr, assigns.sort_dir)
@@ -267,7 +295,8 @@ defmodule Pinchflat.Pages.HistoryTableLive do
   defp generate_base_query("retry") do
     MediaQuery.new()
     |> MediaQuery.require_assoc(:media_profile)
-    |> where(^dynamic(^MediaQuery.retrying()))
+    # A source that's unmonitored or switched off won't retry its videos either
+    |> where(^dynamic(^MediaQuery.retrying() and ^MediaQuery.on_downloading_source()))
   end
 
   defp generate_base_query("failed") do

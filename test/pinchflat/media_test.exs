@@ -702,6 +702,26 @@ defmodule Pinchflat.MediaTest do
 
       assert Repo.reload(media_item_2).playlist_index == media_attrs.playlist_index
     end
+
+    test "re-indexing keeps a video turned off by hand, but refreshes policy blocks" do
+      source = source_fixture()
+
+      media_attrs =
+        media_attributes_return_fixture()
+        |> Phoenix.json_library().decode!()
+        |> YtDlpMedia.response_to_struct()
+
+      allow = %{prevent_download: false, download_prevented_reason: nil}
+      {:ok, item} = Media.create_media_item_from_backend_attrs(source, media_attrs, allow)
+
+      {:ok, _} = Media.update_media_item(item, %{prevent_download: true, download_prevented_reason: "manual"})
+      {:ok, _} = Media.create_media_item_from_backend_attrs(source, media_attrs, allow)
+      assert %{prevent_download: true, download_prevented_reason: "manual"} = Repo.reload(item)
+
+      {:ok, _} = Media.update_media_item(item, %{prevent_download: true, download_prevented_reason: "policy_members"})
+      {:ok, _} = Media.create_media_item_from_backend_attrs(source, media_attrs, allow)
+      assert %{prevent_download: false, download_prevented_reason: nil} = Repo.reload(item)
+    end
   end
 
   describe "update_media_item/2" do

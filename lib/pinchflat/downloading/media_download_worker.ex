@@ -203,8 +203,7 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
       # Members-only, and this source doesn't download members-only videos: it was never
       # wanted, so it's skipped (like one marked members-only at index time), not failed.
       # Indexing can't always tell members-only videos apart, so this is where they surface.
-      String.contains?(message_str, members_only_strings()) and
-          media_item.source.download_members_videos != true ->
+      members_skip?(message_str, media_item) ->
         Logger.info("Skipping members-only video #{media_item.id}: the source doesn't download members-only videos")
 
         Media.update_media_item(media_item, %{
@@ -241,6 +240,16 @@ defmodule Pinchflat.Downloading.MediaDownloadWorker do
 
         {:error, :download_failed}
     end
+  end
+
+  # A failure on a source that doesn't download members-only videos, for a video that is
+  # members-only: yt-dlp says so, or the video is already known to be members-only (YouTube
+  # sometimes just answers "Video unavailable" for those).
+  defp members_skip?(message_str, media_item) do
+    media_item.source.download_members_videos != true and
+      (String.contains?(message_str, members_only_strings()) or
+         (media_item.availability in ~w(subscriber_only premium_only needs_auth) and
+            String.contains?(message_str, permanent_failure_strings())))
   end
 
   # yt-dlp's members-only errors (also in permanent_failure_strings/0). Same strings as the

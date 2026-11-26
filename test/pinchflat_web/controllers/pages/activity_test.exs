@@ -38,6 +38,14 @@ defmodule PinchflatWeb.Pages.ActivityTest do
 
       assert HistoryTableLive.count_for("pending") == 1
     end
+
+    test "Retrying leaves out videos from unmonitored sources" do
+      unmonitored = Pinchflat.SourcesFixtures.source_fixture(download_media: false)
+      media_item_fixture(media_filepath: nil, error_type: "transient", source_id: unmonitored.id)
+      media_item_fixture(media_filepath: nil, error_type: "transient")
+
+      assert HistoryTableLive.count_for("retry") == 1
+    end
   end
 
   describe "the tab tables" do
@@ -45,6 +53,27 @@ defmodule PinchflatWeb.Pages.ActivityTest do
       {:ok, _view, html} = live_isolated(conn, HistoryTableLive, session: %{"media_state" => "failed"})
 
       assert html =~ "No failed downloads."
+    end
+
+    test "Dismiss turns a failed video off and takes it off the list", %{conn: conn} do
+      item =
+        media_item_fixture(
+          media_filepath: nil,
+          error_type: "permanent",
+          prevent_download: true,
+          last_error: "ERROR: Video unavailable"
+        )
+
+      {:ok, view, _html} = live_isolated(conn, HistoryTableLive, session: %{"media_state" => "failed"})
+
+      refute view |> element("#dismiss-#{item.id}") |> render_click() =~ item.title
+
+      item = Pinchflat.Repo.reload(item)
+      assert item.prevent_download
+      assert item.download_prevented_reason == "manual"
+      assert item.error_type == nil
+      assert item.last_error =~ "Video unavailable"
+      assert HistoryTableLive.count_for("failed") == 0
     end
 
     test "list waiting videos with their source", %{conn: conn} do

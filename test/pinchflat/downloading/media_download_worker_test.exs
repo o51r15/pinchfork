@@ -565,6 +565,22 @@ defmodule Pinchflat.Downloading.MediaDownloadWorkerTest do
       assert item.last_error =~ "members"
     end
 
+    test "a known members-only video that's just 'unavailable' is skipped too", %{media_item: media_item} do
+      Sources.update_source(media_item.source, %{download_members_videos: false})
+      {:ok, _} = Media.update_media_item(media_item, %{availability: "subscriber_only"})
+
+      stub(YtDlpRunnerMock, :run, fn
+        _url, :get_downloadable_status, _opts, _ot, _addl -> {:ok, "{}"}
+        _url, :download, _opts, _ot, _addl -> {:error, "ERROR: [youtube] x: Video unavailable", 1}
+      end)
+
+      perform_job(MediaDownloadWorker, %{id: media_item.id})
+      item = Repo.reload(media_item)
+
+      assert item.download_prevented_reason == "policy_members"
+      assert item.error_type == nil
+    end
+
     test "fail as before when the source does download members-only videos", %{media_item: media_item} do
       {:ok, _} = Sources.update_source(media_item.source, %{download_members_videos: true})
 
