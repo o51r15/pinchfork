@@ -113,6 +113,33 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
         </label>
       </div>
       <span class="flex-1"></span>
+      <%!-- Poster size: kept in this browser (localStorage) and applied as a CSS variable on the
+           grid. LiveView leaves this element alone (phx-update="ignore"), and the slider's own
+           input/change events stop here so they don't send a filter event. --%>
+      <div
+        id="poster-size"
+        phx-update="ignore"
+        class="hidden items-center gap-2 text-muted sm:flex"
+        x-data="{ size: (() => { try { return Number(localStorage.getItem('pf-poster-size')) || 180 } catch (e) { return 180 } })() }"
+        x-init="$watch('size', v => { try { localStorage.setItem('pf-poster-size', v) } catch (e) {} })"
+      >
+        <style x-text="'#source-grid { --poster: ' + size + 'px; }'">
+        </style>
+        <.icon name="hero-photo-mini" class="h-3.5 w-3.5" />
+        <input
+          type="range"
+          min="120"
+          max="320"
+          step="10"
+          x-model.number="size"
+          x-on:input.stop
+          x-on:change.stop
+          aria-label="Poster size"
+          title="Poster size"
+          class="h-1.5 w-28 cursor-pointer accent-[rgb(var(--c-accent))]"
+        />
+        <.icon name="hero-photo" class="h-5 w-5" />
+      </div>
       <div class="relative">
         <select
           name="sort"
@@ -152,7 +179,7 @@ defmodule PinchflatWeb.Sources.SourceIndexLive do
       No sources match these filters.
     </p>
 
-    <div class="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-7">
+    <div id="source-grid" class="grid grid-cols-2 gap-4 sm:grid-cols-[repeat(auto-fill,minmax(var(--poster,180px),1fr))]">
       <%= for source <- @sources do %>
         <% counts = Map.get(@counts_by_source, source.id, %{total: 0, downloaded: 0, wanted: 0}) %>
         <% pct = if counts.wanted > 0, do: min(round(counts.downloaded / counts.wanted * 100), 100), else: 0 %>

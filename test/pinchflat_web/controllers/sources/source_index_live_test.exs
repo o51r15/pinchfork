@@ -13,6 +13,16 @@ defmodule PinchflatWeb.Sources.SourceIndexLiveTest do
     :ok
   end
 
+  describe "poster size" do
+    test "has a slider that sizes the grid's columns", %{conn: conn} do
+      source_fixture()
+      {:ok, view, _html} = live(conn, ~p"/sources")
+
+      assert has_element?(view, ~s(#poster-size[phx-update="ignore"] input[type="range"][aria-label="Poster size"]))
+      assert has_element?(view, "#source-grid")
+    end
+  end
+
   describe "source cards" do
     test "count only the videos the source is meant to download", %{conn: conn} do
       profile = media_profile_fixture(shorts_behaviour: :exclude, livestream_behaviour: :exclude)
