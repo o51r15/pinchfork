@@ -6,8 +6,11 @@ defmodule Pinchflat.YtDlp.YtDlpCommandRunner do
   yt-dlp command.
   """
 
-  @callback run(binary(), atom(), keyword(), binary()) :: {:ok, binary()} | {:error, binary(), integer()}
-  @callback run(binary(), atom(), keyword(), binary(), keyword()) :: {:ok, binary()} | {:error, binary(), integer()}
+  @type url :: binary() | [binary()]
+  @type run_result :: {:ok, binary()} | {:partial, binary(), binary()} | {:error, binary(), integer()}
+
+  @callback run(url(), atom(), keyword(), binary()) :: run_result()
+  @callback run(url(), atom(), keyword(), binary(), keyword()) :: run_result()
   @callback version() :: {:ok, binary()} | {:error, binary()}
   @callback update() :: {:ok, binary()} | {:error, binary()}
   @callback update(binary()) :: {:ok, binary()} | {:error, binary()}

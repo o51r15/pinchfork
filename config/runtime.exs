@@ -58,8 +58,9 @@ config :pinchflat, Oban,
   plugins: [
     # Keep finished jobs for 7 days for display in the UI (30 days bloated oban_jobs)
     {Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60},
-    # Rescue jobs stuck in "executing" state after a crash or container restart
-    {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
+    # No Lifeline: jobs cut off by a restart are reset once at boot
+    # (Boot.PreJobStartupTasks). OSS Lifeline re-ran any job older than its
+    # timeout even while it was still running, which killed long indexes.
     {Oban.Plugins.Cron,
      crontab: [
        {"#{current_minute} #{current_hour} * * *", Pinchflat.YtDlp.UpdateWorker},

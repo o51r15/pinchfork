@@ -73,6 +73,18 @@ defmodule Pinchflat.FastIndexing.FastIndexingWorker do
     if source.download_media do
       SourceNotifications.send_new_media_notification(apprise_server, source, length(new_media_items))
     end
+  rescue
+    # A crash here used to fail the job, and once its retries ran out nothing scheduled
+    # the source's fast index again. Log it and reschedule as normal.
+    e in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
+      reraise e, __STACKTRACE__
+
+    e ->
+      Logger.error(
+        "#{__MODULE__}: fast index of source #{source.id} crashed: #{Exception.format(:error, e, __STACKTRACE__)}"
+      )
+
+      :ok
   end
 
   defp reschedule_indexing(source) do

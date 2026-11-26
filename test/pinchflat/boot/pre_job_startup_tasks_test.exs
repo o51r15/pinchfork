@@ -38,6 +38,15 @@ defmodule Pinchflat.Boot.PreJobStartupTasksTest do
 
       assert Repo.reload!(job).state == "retryable"
     end
+
+    test "gives a job that used up its attempts one more, so it can run again" do
+      job = job_fixture()
+      Repo.update_all(Oban.Job, set: [state: "available", attempt: 20, max_attempts: 20])
+
+      PreJobStartupTasks.init(%{})
+
+      assert Repo.reload!(job).max_attempts == 21
+    end
   end
 
   describe "create_blank_yt_dlp_files" do

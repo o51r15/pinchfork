@@ -381,6 +381,18 @@ defmodule PinchflatWeb.Sources.SourceNewLive do
               <button type="button" phx-click="set_cutoff" phx-value-days="365" class={small_button()}>Last year</button>
               <p :if={@errors[:cutoff_date]} class="w-full text-[13px] text-bad">{@errors[:cutoff_date]}</p>
             </div>
+            <div
+              :if={@params["mode"] in ["all", "none"] and not match?({:ok, %{type: :playlist}}, @lookup)}
+              id="big-channel-warning"
+              class="mt-3 flex gap-2.5 rounded-lg border border-warn/40 bg-warn/10 px-3.5 py-3 text-[13px] leading-5 text-fg"
+            >
+              <.icon name="hero-exclamation-triangle" class="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+              <span>
+                With no start date, the first index reads every video on the channel and opens each one.
+                A big channel (thousands of videos) can take many hours, even days. Pick <strong>From a date</strong>
+                to stop it there; leaving Shorts or Livestreams out of the media profile also skips those tabs.
+              </span>
+            </div>
           </fieldset>
 
           <div class="flex flex-wrap items-start justify-between gap-4 border-t border-line px-5 py-4">

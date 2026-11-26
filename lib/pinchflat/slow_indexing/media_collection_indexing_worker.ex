@@ -109,6 +109,18 @@ defmodule Pinchflat.SlowIndexing.MediaCollectionIndexingWorker do
     SourceNotifications.wrap_new_media_notification(apprise_server, source, fn ->
       SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source, indexing_opts)
     end)
+  rescue
+    # A crash here used to fail the job, and once its retries ran out nothing scheduled
+    # the source again. Log it and let the caller reschedule as normal.
+    e in [Ecto.NoResultsError, Ecto.StaleEntryError] ->
+      reraise e, __STACKTRACE__
+
+    e ->
+      Logger.error(
+        "#{__MODULE__}: index of source #{source.id} crashed: #{Exception.format(:error, e, __STACKTRACE__)}"
+      )
+
+      []
   end
 
   defp reschedule_indexing(source) do

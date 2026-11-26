@@ -524,21 +524,141 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpersTest do
       source = source_fixture(%{collection_type: :channel, last_indexed_at: now()})
 
       media_items =
-        1..21
+        1..41
         |> Enum.map(fn n ->
           media_item_fixture(%{source_id: source.id, uploaded_at: now_minus(n, :days)})
         end)
 
       expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
         archive_file = Keyword.get(opts, :download_archive)
-        last_media_item = List.last(media_items)
+        # The 20 newest are left out so they're read again
+        expected = media_items |> Enum.drop(20) |> Enum.map_join("\n", &"youtube #{&1.media_id}")
 
-        assert File.read!(archive_file) == "youtube #{last_media_item.media_id}"
+        assert File.read!(archive_file) == expected
 
         {:ok, source_attributes_return_fixture()}
       end)
 
       SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+    end
+
+    test "each kind of video gets its own slice of the archive, so every tab can stop" do
+      source = source_fixture(%{collection_type: :channel, last_indexed_at: now()})
+
+      shorts =
+        Enum.map(1..4, fn n ->
+          media_item_fixture(%{source_id: source.id, short_form_content: true, uploaded_at: now_minus(n, :days)})
+        end)
+
+      Enum.each(1..41, fn n -> media_item_fixture(%{source_id: source.id, uploaded_at: now_minus(n, :minutes)}) end)
+
+      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
+        archive = opts |> Keyword.get(:download_archive) |> File.read!()
+
+        # Half of the 4 shorts are left out to be read again; the older two make the Shorts tab stop
+        refute archive =~ hd(shorts).media_id
+        assert archive =~ List.last(shorts).media_id
+
+        {:ok, source_attributes_return_fixture()}
+      end)
+
+      SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+    end
+
+    test "an unfinished first index skips every known video without stopping at them" do
+      source = source_fixture(%{collection_type: :channel, last_indexed_at: nil})
+      known = Enum.map(1..3, fn _ -> media_item_fixture(%{source_id: source.id}) end)
+
+      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
+        refute :break_on_existing in opts
+        lines = opts |> Keyword.get(:download_archive) |> File.read!() |> String.split("\n")
+
+        assert Enum.sort(lines) == Enum.sort(Enum.map(known, &"youtube #{&1.media_id}"))
+
+        {:ok, source_attributes_return_fixture()}
+      end)
+
+      SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+    end
+  end
+
+  describe "index_and_enqueue_download_for_media_items when reading a channel" do
+    test "reads the channel's tabs and stops each one at the cutoff date" do
+      profile = media_profile_fixture(%{shorts_behaviour: :exclude, livestream_behaviour: :include})
+
+      source =
+        source_fixture(%{
+          original_url: "https://www.youtube.com/@SomeChannel",
+          media_profile_id: profile.id,
+          download_cutoff_date: ~D[2025-09-25]
+        })
+
+      expect(YtDlpRunnerMock, :run, fn url, :get_media_attributes_for_collection, opts, _ot, addl_opts ->
+        assert url == ["https://www.youtube.com/@SomeChannel/videos", "https://www.youtube.com/@SomeChannel/streams"]
+        assert :lazy_playlist in opts
+        assert {:break_match_filters, "upload_date>=?20250925"} in opts
+        assert :break_per_input in opts
+        assert {:partial_ok, true} in addl_opts
+
+        {:ok, source_attributes_return_fixture()}
+      end)
+
+      SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+    end
+
+    test "a playlist is read as given, with no cutoff stop" do
+      source =
+        source_fixture(%{
+          collection_type: :playlist,
+          original_url: "https://www.youtube.com/playlist?list=PL1",
+          download_cutoff_date: ~D[2025-09-25]
+        })
+
+      expect(YtDlpRunnerMock, :run, fn url, :get_media_attributes_for_collection, opts, _ot, _addl_opts ->
+        assert url == "https://www.youtube.com/playlist?list=PL1"
+        refute Keyword.has_key?(opts, :break_match_filters)
+        refute :break_per_input in opts
+
+        {:ok, source_attributes_return_fixture()}
+      end)
+
+      SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+    end
+  end
+
+  describe "index_and_enqueue_download_for_media_items when yt-dlp reports errors" do
+    test "keeps what it found and counts the index as finished after harmless errors" do
+      source = source_fixture(%{last_indexed_at: nil})
+
+      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+        {:partial, source_attributes_return_fixture(),
+         "ERROR: [youtube:tab] @x: This channel does not have a shorts tab"}
+      end)
+
+      assert [_, _, _] = SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+      assert Repo.reload!(source).last_indexed_at
+    end
+
+    test "keeps what it found but leaves the first index unfinished when it was cut off" do
+      source = source_fixture(%{last_indexed_at: nil})
+
+      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+        {:partial, source_attributes_return_fixture(), "ERROR: [youtube] abc: Sign in to confirm you're not a bot"}
+      end)
+
+      assert [_, _, _] = SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+      refute Repo.reload!(source).last_indexed_at
+    end
+
+    test "doesn't crash when yt-dlp fails outright" do
+      source = source_fixture(%{last_indexed_at: nil})
+
+      expect(YtDlpRunnerMock, :run, fn _url, :get_media_attributes_for_collection, _opts, _ot, _addl_opts ->
+        {:error, "ERROR: Unable to download webpage", 1}
+      end)
+
+      assert [] = SlowIndexingHelpers.index_and_enqueue_download_for_media_items(source)
+      refute Repo.reload!(source).last_indexed_at
     end
   end
 end

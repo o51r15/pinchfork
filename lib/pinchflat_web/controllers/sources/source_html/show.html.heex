@@ -33,9 +33,23 @@
         <span class="ml-1 text-xs text-muted">
           {if @source.last_indexed_at,
             do: "Last full scan #{time_ago(@source.last_indexed_at)}",
-            else: "Not scanned yet"}
+            else: "First full scan not finished"}
         </span>
       </div>
+      <p
+        :if={
+          is_nil(@source.last_indexed_at) and @source.collection_type == :channel and
+            is_nil(@source.download_cutoff_date)
+        }
+        id="first-scan-note"
+        class="mt-2 flex max-w-2xl gap-2 text-xs leading-5 text-muted"
+      >
+        <.icon name="hero-exclamation-triangle-mini" class="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+        <span>
+          With no start date, the first scan reads every video on the channel, which can take hours or days for a big one.
+          It picks up where it left off if it's interrupted. Set a start date in Edit to stop it sooner.
+        </span>
+      </p>
     </div>
 
     <div class="flex flex-wrap items-center gap-2 pb-0.5" id="source-actions">

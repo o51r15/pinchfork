@@ -60,14 +60,29 @@ defmodule Pinchflat.Boot.PreJobStartupTasks do
 
   # If a node cannot gracefully shut down, the currently executing jobs get stuck
   # in the "executing" state. This is a problem because the job runner will not
-  # pick them up again
+  # pick them up again.
+  #
+  # This runs once, before Oban starts, so anything still "executing" really was
+  # cut off by the restart. (Pinchfork used to rely on Oban's Lifeline plugin for
+  # this, but OSS Lifeline can't tell a live job from an orphan: it re-ran every
+  # index that took longer than its timeout, while the first run was still going.)
+  #
+  # A job that has used all its attempts is never fetched again, so it gets one
+  # more. That also frees jobs Lifeline left stuck at attempt == max_attempts.
   defp reset_executing_jobs do
     {count, _} =
       Oban.Job
-      |> where(state: "executing")
+      |> where([j], fragment("?::text", j.state) == "executing")
       |> Repo.update_all(set: [state: "retryable"])
 
-    Logger.info("Reset #{count} executing jobs")
+    {stuck, _} =
+      Oban.Job
+      |> where([j], fragment("?::text", j.state) in ["available", "retryable", "scheduled"])
+      |> where([j], j.attempt >= j.max_attempts)
+      |> update([j], set: [max_attempts: fragment("? + 1", j.attempt)])
+      |> Repo.update_all([])
+
+    Logger.info("Reset #{count} executing jobs, gave #{stuck} out-of-attempts jobs another try")
   end
 
   defp create_blank_yt_dlp_files do

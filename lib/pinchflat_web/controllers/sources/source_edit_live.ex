@@ -247,7 +247,10 @@ defmodule PinchflatWeb.Sources.SourceEditLive do
         </.card>
 
         <.card title="What to download">
-          <.settings_row label="Videos from" help="Older videos are indexed but not downloaded.">
+          <.settings_row
+            label="Videos from"
+            help="On a channel, indexing stops at this date. A playlist is still read in full; older videos aren't downloaded."
+          >
             <div class="flex flex-wrap gap-2" role="radiogroup">
               <label
                 :for={{value, label} <- [{"all", "Any date"}, {"date", "On or after a date"}]}
@@ -275,6 +278,16 @@ defmodule PinchflatWeb.Sources.SourceEditLive do
               <button type="button" phx-click="set_cutoff" phx-value-days="30" class={small_button()}>Last 30 days</button>
               <button type="button" phx-click="set_cutoff" phx-value-days="365" class={small_button()}>Last year</button>
             </div>
+            <p
+              :if={@params["cutoff_mode"] != "date" and @source.collection_type == :channel}
+              id="big-channel-warning"
+              class="mt-3 flex gap-2 text-xs leading-5 text-muted"
+            >
+              <.icon name="hero-exclamation-triangle-mini" class="mt-0.5 h-4 w-4 shrink-0 text-warn" />
+              <span>
+                Any date means a full scan reads every video on the channel; for a big channel that can take hours or days.
+              </span>
+            </p>
             <.field_errors field={@form[:download_cutoff_date]} />
           </.settings_row>
           <.settings_row label="Public videos" for="source_download_public_videos" help="Normal videos anyone can watch.">

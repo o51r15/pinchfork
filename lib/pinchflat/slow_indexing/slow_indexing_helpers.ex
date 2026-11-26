@@ -18,6 +18,7 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
   alias Pinchflat.YtDlp.MediaCollection
   alias Pinchflat.Utils.FilesystemUtils
   alias Pinchflat.Downloading.DownloadingHelpers
+  alias Pinchflat.SlowIndexing.IndexPlan
   alias Pinchflat.SlowIndexing.FileFollowerServer
   alias Pinchflat.Downloading.DownloadOptionBuilder
   alias Pinchflat.SlowIndexing.MediaCollectionIndexingWorker
@@ -98,7 +99,11 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
     source = Repo.preload(source, [:media_profile])
     # See the method definition below for more info on how file watchers work
     # (important reading if you're not familiar with it)
-    {:ok, media_attributes} = setup_file_watcher_and_kickoff_indexing(source, opts)
+    {media_attributes, finished?} =
+      source
+      |> setup_file_watcher_and_kickoff_indexing(opts)
+      |> indexing_outcome(source)
+
     # Reload because the source may have been updated during the (long-running) indexing process
     # and important settings like `download_media` may have changed.
     source = Repo.reload!(source)
@@ -118,11 +123,54 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
         end
       end)
 
-    Sources.update_source(source, %{last_indexed_at: DateTime.utc_now()})
+    # Only a finished index counts. Until then the next run resumes the first index
+    # (see build_download_archive_options) instead of stopping at the newest videos.
+    if finished?, do: Sources.update_source(source, %{last_indexed_at: DateTime.utc_now()})
     DownloadingHelpers.enqueue_pending_download_tasks(source)
 
     result
   end
+
+  # yt-dlp errors that mean it was cut off (blocked, rate limited, network), so the
+  # index didn't really reach the end. Anything else (one unavailable or members-only
+  # video, a channel with no Shorts tab) still lets the index count as finished.
+  defp interrupted_patterns do
+    [
+      ~r/confirm you.re not a bot/i,
+      ~r/HTTP Error (403|429|5\d\d)/i,
+      ~r/unable to download (api|webpage|json)/i,
+      ~r/timed out|connection (reset|refused|aborted)|temporary failure in name resolution/i,
+      ~r/appears to have been moved or deleted/i
+    ]
+  end
+
+  defp indexing_outcome({:ok, media_attributes}, _source), do: {media_attributes, true}
+
+  defp indexing_outcome({:partial, media_attributes, error_output}, source) do
+    interrupted? = Enum.any?(interrupted_patterns(), &Regex.match?(&1, error_output))
+
+    Logger.warning(
+      "Index of source #{source.id} had yt-dlp errors (#{if interrupted?, do: "cut off", else: "kept going"}): " <>
+        tail(error_output)
+    )
+
+    {media_attributes, not interrupted?}
+  end
+
+  defp indexing_outcome(error, source) do
+    Logger.error("Index of source #{source.id} failed: #{inspect(error) |> String.slice(0, 1000)}")
+
+    {[], false}
+  end
+
+  defp tail(text) do
+    if String.length(text) > 1000, do: String.slice(text, -1000, 1000), else: text
+  end
+
+  # With several URLs (a channel's tabs), a break (cutoff or known videos) should only
+  # end the tab it happened in, not the whole run.
+  defp break_per_input_options([_one]), do: []
+  defp break_per_input_options(_urls), do: [:break_per_input]
 
   # The file follower is a GenServer that watches a file for new lines and
   # processes them. This works well, but we have to be resilliant to partially-written
@@ -144,13 +192,18 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
     handler = fn filepath -> setup_file_follower_watcher(pid, filepath, source) end
     should_use_cookies = Sources.use_cookies?(source, :indexing)
 
+    urls = IndexPlan.urls(source)
+
     command_opts =
       [output: DownloadOptionBuilder.build_output_path_for(source)] ++
         DownloadOptionBuilder.build_quality_options_for(source) ++
-        build_download_archive_options(source, was_forced)
+        build_download_archive_options(source, was_forced) ++
+        IndexPlan.read_options(source) ++
+        break_per_input_options(urls)
 
-    runner_opts = [file_listener_handler: handler, use_cookies: should_use_cookies]
-    result = MediaCollection.get_media_attributes_for_collection(source.original_url, command_opts, runner_opts)
+    runner_opts = [file_listener_handler: handler, use_cookies: should_use_cookies, partial_ok: true]
+    url_arg = if length(urls) == 1, do: hd(urls), else: urls
+    result = MediaCollection.get_media_attributes_for_collection(url_arg, command_opts, runner_opts)
 
     FileFollowerServer.stop(pid)
 
@@ -252,17 +305,27 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
   # From there, we format the media IDs in the way that yt-dlp expects (ie: "<extractor> <media_id>")
   # and return the filepath to the caller.
   defp create_download_archive_file(source) do
-    tmpfile = FilesystemUtils.generate_metadata_tmpfile(:txt)
+    source
+    |> get_media_items_for_download_archive()
+    |> Enum.map(& &1.media_id)
+    |> write_archive_file()
+  end
 
-    archive_contents =
-      source
-      |> get_media_items_for_download_archive()
-      |> Enum.map_join("\n", fn media_item -> "youtube #{media_item.media_id}" end)
+  defp write_archive_file(media_ids) do
+    tmpfile = FilesystemUtils.generate_metadata_tmpfile(:txt)
+    archive_contents = Enum.map_join(media_ids, "\n", fn media_id -> "youtube #{media_id}" end)
 
     case File.write(tmpfile, archive_contents) do
       :ok -> tmpfile
       err -> err
     end
+  end
+
+  defp known_media_ids(source) do
+    MediaQuery.new()
+    |> where(^MediaQuery.for_source(source))
+    |> select([mi], mi.media_id)
+    |> Repo.all()
   end
 
   # Sorting by `uploaded_at` is important because we want to re-index the most recent
@@ -275,22 +338,61 @@ defmodule Pinchflat.SlowIndexing.SlowIndexingHelpers do
   #
   # The chosen limit and offset are arbitary, independent, and vibes-based. Feel free to
   # tweak as-needed
+  #
+  # A channel is read tab by tab and each tab stops at the first video in the archive, so
+  # each kind (videos, shorts, livestreams) gets its own slice. Otherwise a busy Shorts tab
+  # might have none of its videos in the archive and be read to the end.
   defp get_media_items_for_download_archive(source) do
-    MediaQuery.new()
-    |> where(^MediaQuery.for_source(source))
-    |> order_by(desc: :uploaded_at)
-    |> limit(50)
-    |> offset(20)
-    |> Repo.all()
+    [
+      dynamic([mi], fragment("coalesce(?, false)", mi.livestream)),
+      dynamic(
+        [mi],
+        not fragment("coalesce(?, false)", mi.livestream) and fragment("coalesce(?, false)", mi.short_form_content)
+      ),
+      dynamic(
+        [mi],
+        not fragment("coalesce(?, false)", mi.livestream) and not fragment("coalesce(?, false)", mi.short_form_content)
+      )
+    ]
+    |> Enum.flat_map(fn kind ->
+      query =
+        MediaQuery.new()
+        |> where(^MediaQuery.for_source(source))
+        |> where(^kind)
+
+      # A kind with only a few videos (a channel's handful of livestreams) would have none
+      # left after skipping 20, so its tab would never stop; skip at most half of them.
+      skip = min(20, div(Repo.aggregate(query, :count), 2))
+
+      query
+      |> order_by(desc: :uploaded_at)
+      |> limit(50)
+      |> offset(^skip)
+      |> Repo.all()
+    end)
   end
 
   # The download archive isn't useful for playlists (since those are ordered arbitrarily)
   # and we don't want to use it if the indexing was forced by the user. In other words,
   # only create an archive for channels that are being indexed as part of their regular
-  # indexing schedule. The first indexing pass should also not create an archive.
+  # indexing schedule. Until the first index has finished, the archive only skips
+  # known videos (it doesn't stop at them).
   defp build_download_archive_options(%Source{collection_type: :playlist}, _was_forced), do: []
-  defp build_download_archive_options(%Source{last_indexed_at: nil}, _was_forced), do: []
   defp build_download_archive_options(_source, true), do: []
+
+  # The first index hasn't finished (it was cut off, or this is the first run). Skip
+  # every video we already have without opening it, but don't stop at them: the run
+  # carries on to the cutoff date or the end of the channel. On a first run there are
+  # no videos yet, so there's nothing to skip.
+  defp build_download_archive_options(%Source{last_indexed_at: nil} = source, _was_forced) do
+    known_ids = known_media_ids(source)
+
+    if known_ids == [] do
+      []
+    else
+      [download_archive: write_archive_file(known_ids)]
+    end
+  end
 
   defp build_download_archive_options(source, _was_forced) do
     archive_file = create_download_archive_file(source)

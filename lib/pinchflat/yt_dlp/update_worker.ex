@@ -14,10 +14,18 @@ defmodule Pinchflat.YtDlp.UpdateWorker do
     queue: :local_data,
     tags: ["local_data"]
 
+  import Ecto.Query, warn: false
   require Logger
 
   alias __MODULE__
+  alias Pinchflat.Repo
   alias Pinchflat.Settings
+
+  @snooze_seconds 15 * 60
+  @indexing_workers [
+    "Pinchflat.SlowIndexing.MediaCollectionIndexingWorker",
+    "Pinchflat.FastIndexing.FastIndexingWorker"
+  ]
 
   @doc """
   Starts the yt-dlp update worker. Does not attach it to a task like `kickoff_with_task/2`
@@ -38,6 +46,24 @@ defmodule Pinchflat.YtDlp.UpdateWorker do
   """
   @impl Oban.Worker
   def perform(%Oban.Job{}) do
+    # Replacing the binary under a running index kills it ("yt-dlp appears to have been
+    # moved or deleted"), and an index of a big channel can run for hours. Wait for it.
+    if indexing_running?() do
+      Logger.info("yt-dlp update waiting: an index is running")
+      {:snooze, @snooze_seconds}
+    else
+      update_and_record_version()
+    end
+  end
+
+  defp indexing_running? do
+    Oban.Job
+    |> where([j], fragment("?::text", j.state) == "executing")
+    |> where([j], j.worker in ^@indexing_workers)
+    |> Repo.exists?()
+  end
+
+  defp update_and_record_version do
     version_channel = get_version_channel()
 
     case version_channel do

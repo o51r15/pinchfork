@@ -33,8 +33,14 @@ defmodule Pinchflat.YtDlp.CommandRunner do
       attach a cookie file if the user hasn't set one up.
     - :skip_sleep_interval - if true, will not add the sleep interval options to the command.
       Usually only used for commands that would be UI-blocking
+    - :partial_ok - if true, a run that exits with an error (1) but still wrote output
+      returns {:partial, file_contents, output} instead of an error. Used for indexing,
+      where one unavailable video or a channel without a Shorts tab shouldn't throw away
+      everything else yt-dlp found.
 
-  Returns {:ok, binary()} | {:error, output, status}.
+  `url` can be a list of URLs; yt-dlp reads them in order.
+
+  Returns {:ok, binary()} | {:partial, binary(), output} | {:error, output, status}.
   """
   @impl YtDlpCommandRunner
   def run(url, action_name, command_opts, output_template, addl_opts \\ []) do
@@ -45,7 +51,7 @@ defmodule Pinchflat.YtDlp.CommandRunner do
     user_configured_opts = cookie_file_options(addl_opts) ++ rate_limit_options(addl_opts) ++ misc_options()
     # These must stay in exactly this order, hence why I'm giving it its own variable.
     all_opts = command_opts ++ print_to_file_opts ++ user_configured_opts ++ global_options()
-    formatted_command_opts = [url] ++ CliUtils.parse_options(all_opts)
+    formatted_command_opts = List.wrap(url) ++ CliUtils.parse_options(all_opts)
 
     case CliUtils.wrap_cmd(backend_executable(), formatted_command_opts, stderr_to_stdout: true) do
       # yt-dlp exit codes:
@@ -57,8 +63,22 @@ defmodule Pinchflat.YtDlp.CommandRunner do
       {_, status} when status in [0, 101] ->
         File.read(output_filepath)
 
+      {output, 1} ->
+        if Keyword.get(addl_opts, :partial_ok, false) do
+          partial_result(output_filepath, output)
+        else
+          {:error, output, 1}
+        end
+
       {output, status} ->
         {:error, output, status}
+    end
+  end
+
+  defp partial_result(output_filepath, output) do
+    case File.read(output_filepath) do
+      {:ok, contents} when contents != "" -> {:partial, contents, output}
+      _ -> {:error, output, 1}
     end
   end
 

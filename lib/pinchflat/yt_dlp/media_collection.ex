@@ -19,8 +19,12 @@ defmodule Pinchflat.YtDlp.MediaCollection do
       file that will be written to when yt-dlp is done. This is useful for
       setting up a file watcher to know when the file is ready to be read.
     - :use_cookies - whether or not to use user-provided cookies when fetching the media details
+    - :partial_ok - if true, a run where yt-dlp hit errors but still found media returns
+      {:partial, [map()], error_output} rather than an error (see CommandRunner)
 
-  Returns {:ok, [map()]} | {:error, any, ...}.
+  `url` can be one URL or a list of them (e.g. a channel's tabs).
+
+  Returns {:ok, [map()]} | {:partial, [map()], binary()} | {:error, any, ...}.
   """
   def get_media_attributes_for_collection(url, command_opts \\ [], addl_opts \\ []) do
     # `ignore_no_formats_error` is necessary because yt-dlp will error out if
@@ -32,6 +36,7 @@ defmodule Pinchflat.YtDlp.MediaCollection do
     output_filepath = FilesystemUtils.generate_metadata_tmpfile(:json)
     file_listener_handler = Keyword.get(addl_opts, :file_listener_handler, false)
     runner_opts = [output_filepath: output_filepath, use_cookies: use_cookies]
+    runner_opts = if addl_opts[:partial_ok], do: runner_opts ++ [partial_ok: true], else: runner_opts
     action = :get_media_attributes_for_collection
 
     if file_listener_handler do
@@ -39,25 +44,22 @@ defmodule Pinchflat.YtDlp.MediaCollection do
     end
 
     case backend_runner().run(url, action, all_command_opts, output_template, runner_opts) do
-      {:ok, output} ->
-        parsed_lines =
-          output
-          |> String.split("\n", trim: true)
-          |> Enum.map(fn line ->
-            case Phoenix.json_library().decode(line) do
-              {:ok, parsed_json} ->
-                YtDlpMedia.response_to_struct(parsed_json)
-
-              _ ->
-                nil
-            end
-          end)
-
-        {:ok, Enum.filter(parsed_lines, &(&1 != nil))}
-
-      err ->
-        err
+      {:ok, output} -> {:ok, parse_media_lines(output)}
+      {:partial, output, error_output} -> {:partial, parse_media_lines(output), error_output}
+      err -> err
     end
+  end
+
+  defp parse_media_lines(output) do
+    output
+    |> String.split("\n", trim: true)
+    |> Enum.map(fn line ->
+      case Phoenix.json_library().decode(line) do
+        {:ok, parsed_json} -> YtDlpMedia.response_to_struct(parsed_json)
+        _ -> nil
+      end
+    end)
+    |> Enum.filter(&(&1 != nil))
   end
 
   @doc """

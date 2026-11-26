@@ -20,5 +20,14 @@ defmodule Pinchflat.YtDlp.UpdateWorkerTest do
 
       assert {:ok, "1.2.3"} = Settings.get(:yt_dlp_version)
     end
+
+    test "waits instead of updating while an index is running" do
+      {:ok, job} = Oban.insert(Pinchflat.SlowIndexing.MediaCollectionIndexingWorker.new(%{id: 1}))
+      job |> Ecto.Changeset.change(state: "executing") |> Repo.update!()
+
+      expect(YtDlpRunnerMock, :update, 0, fn _channel -> {:ok, ""} end)
+
+      assert {:snooze, _} = perform_job(UpdateWorker, %{})
+    end
   end
 end

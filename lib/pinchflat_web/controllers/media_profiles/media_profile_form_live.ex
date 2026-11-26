@@ -435,11 +435,15 @@ defmodule PinchflatWeb.MediaProfiles.MediaProfileFormLive do
           <.settings_row
             label="Shorts"
             for="media_profile_shorts_behaviour"
-            help="Found while indexing, so skipping them doesn't make indexing faster."
+            help="Leaving them out skips a channel's Shorts tab, so indexing is faster."
           >
             <.select_control field={@form[:shorts_behaviour]} options={include_options("shorts")} />
           </.settings_row>
-          <.settings_row label="Livestreams" for="media_profile_livestream_behaviour" help="Past livestreams and premieres.">
+          <.settings_row
+            label="Livestreams"
+            for="media_profile_livestream_behaviour"
+            help="Past livestreams and premieres. Leaving them out skips a channel's Live tab."
+          >
             <.select_control field={@form[:livestream_behaviour]} options={include_options("livestreams")} />
           </.settings_row>
         </.card>
